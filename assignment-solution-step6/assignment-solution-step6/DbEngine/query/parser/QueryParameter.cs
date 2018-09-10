@@ -1,3 +1,4 @@
+using DbEngine.query.parser;
 using System;
 using System.Collections.Generic;
 
@@ -18,5 +19,6 @@ namespace DbEngine.Query.Parser
         public List<String> OrderByFields { get; set; }
         // Query type may be simple, group by, order by, aggregate
         public string QueryType { get; set; } = "SIMPLE_QUERY";
+        public List<ConditionGroup> ConditionGroups{ get; set; }
     }
 }

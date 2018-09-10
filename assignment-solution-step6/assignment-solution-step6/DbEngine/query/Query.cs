@@ -35,8 +35,8 @@ namespace DbEngine.Query
                 queryParameter = queryParser.ParseQuery(queryString, 4);
             }
             queryParameter = queryParser.ParseQuery(queryString, 5);
-            
-
+            queryParameter.OrderByFields = queryParser.ParseOrderBy(queryString);
+            queryParameter.ConditionGroups = queryParser.ParseCondition(queryString);
             if (queryParameter.Fields[0] == "*")
             {
                 queryParameter.QueryType = "SIMPLE_QUERY";

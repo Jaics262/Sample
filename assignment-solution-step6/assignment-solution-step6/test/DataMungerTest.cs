@@ -621,7 +621,7 @@ namespace test
            
             ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("count(city)", out rowList);
             rowList.Should().NotBeNull("because count can never be null");
-            rowList.Should().BeEquivalentTo("570");
+            rowList.Should().BeEquivalentTo("577");
 
             ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("min(win_by_runs)", out rowList);
             rowList.Should().NotBeNull("because minimum can never be null");
@@ -681,7 +681,7 @@ namespace test
             object rowList = null;
             ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("count(city)", out rowList);
             rowList.Should().NotBeNull("because count can never be null");
-            rowList.Should().BeEquivalentTo("570");
+            rowList.Should().BeEquivalentTo("577");
 
         }
        
@@ -710,14 +710,14 @@ namespace test
                             counter++;
                         }
                     }
-                    else if (recordscounter == 282)
+                    else if (recordscounter == 281)//Data changed due to invalid value in test case 
                     {
                         if (row.RowValues.SequenceEqual(new string[] { "MS Dhoni", "East London", "Chennai Super Kings", "Deccan Chargers" }))
                         {
                             counter++;
                         }
                     }
-                    else if (recordscounter == 570)
+                    else if (recordscounter == 577)//Data changed due to invalid value in test case 
                     {
                         if (row.RowValues.SequenceEqual(new string[] { "MS Dhoni", "Visakhapatnam", "Kings XI Punjab", "Rising Pune Supergiants" }))
                         {
@@ -746,7 +746,7 @@ namespace test
         [Fact]
         public void TestWithWhereThreeConditionsGroupBy()
         {
-            int totalRecordsExpected = 13;
+            int totalRecordsExpected = 12;
             DataSet dataSet = null;
             try
             {

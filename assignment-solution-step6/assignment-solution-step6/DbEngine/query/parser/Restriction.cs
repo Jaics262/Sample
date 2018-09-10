@@ -6,7 +6,8 @@ namespace DbEngine.Query.Parser
      This class is used for storing name of field, condition and value for 
      each conditions  and mention parameterized constructor
   */
-    public class Restriction {
+    public class Restriction
+    {
         string propertyName, propertyValue, condition;
 
         public Restriction(string propertyName, string propertyValue, string condition)
@@ -15,7 +16,7 @@ namespace DbEngine.Query.Parser
             this.propertyValue = propertyValue;
             this.condition = condition;
         }
-
+        public string GetPropertyName { get { return this.propertyName; } }
         public string GetPropertyValue
         {
             get
@@ -43,4 +44,5 @@ namespace DbEngine.Query.Parser
             return base.GetHashCode();
         }
     }
+
 }

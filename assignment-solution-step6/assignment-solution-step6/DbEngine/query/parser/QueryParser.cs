@@ -4,10 +4,11 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Text;
+using DbEngine.query.parser;
 
 namespace DbEngine.Query.Parser
 {
-    
+
     public class QueryParser
     {
         private QueryParameter queryParameter;
@@ -58,6 +59,95 @@ namespace DbEngine.Query.Parser
             return queryParameter;
         }
 
+        internal List<string> ParseOrderBy(string queryString)
+        {
+            return GetOrderByFields(queryString);
+        }
+
+        internal List<ConditionGroup> ParseCondition(string queryString)
+        {
+            string[] stringSplitOperators = new string[] { " where " };
+            string[] whereCondition;
+            whereCondition = queryString.Split(stringSplitOperators, StringSplitOptions.None);
+            if (whereCondition.Length != 2)
+            {
+                return new List<ConditionGroup>();
+            }
+            return GetConditionGroupBy(whereCondition[1]);
+        }
+        private static List<ConditionGroup> GetConditionGroupBy(string query)
+        {
+            query = query.Split(new string[] { " group by ", " order by " }, StringSplitOptions.None)[0];
+
+            string[] stringSeparators = new string[] { " or " };
+            var queryGroup = query.Split(stringSeparators, StringSplitOptions.None);
+            List<ConditionGroup> conditionGroups = new List<ConditionGroup>();
+            stringSeparators[0] = " and ";
+            foreach (var item in queryGroup)
+            {
+                var restrictionGroup = new List<Restriction>();
+                var andGroup = item.Split(stringSeparators, StringSplitOptions.None);
+                foreach (var andItem in andGroup)
+                {
+                    ParseCondition(restrictionGroup, andItem);
+                }
+                conditionGroups.Add(new ConditionGroup { ConditionsGroup = restrictionGroup, Operator = "or" });
+            }
+
+            return conditionGroups;
+        }
+
+        private static void ParseCondition(List<Restriction> restrictionGroup, string andItem)
+        {
+            var condition = andItem.Trim().Split(' ');
+
+            if (condition.Length == 3)
+                restrictionGroup.Add(new Restriction(condition[0], condition[2], condition[1]));
+            else
+            {
+                if (andItem.IndexOf("==") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, "==");
+                }
+                else if (andItem.IndexOf("!=") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, "!=");
+                }
+                else if (andItem.IndexOf(">=") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, ">=");
+                }
+                else if (andItem.IndexOf("<=") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, "<=");
+                }
+                else if (andItem.IndexOf("<") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, "<");
+                }
+                else if (andItem.IndexOf(">") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, ">");
+                }
+                else if (andItem.IndexOf("<>") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, "<>");
+                }
+                else if (andItem.IndexOf("=") != -1)
+                {
+                    SplitExpression(restrictionGroup, andItem, "=");
+                }
+            }
+        }
+
+        private static void SplitExpression(List<Restriction> restrictionGroup, string expression, string conditionoperator)
+        {
+            var item = expression.Split(new string[] { conditionoperator }, StringSplitOptions.None);
+            if (item.Length == 2)
+            {
+                restrictionGroup.Add(new Restriction(item[0].Trim(), item[1].Trim(), conditionoperator.Trim()));
+            }
+        }
         /*
            * extract the name of the file from the query. File name can be found after the
            * "from" clause.
@@ -178,6 +268,16 @@ namespace DbEngine.Query.Parser
         private List<Restriction> GetRestrictions(string queryString)
         {
             string[] query = queryString.Split(new char[] { ' ' });
+
+            if (query.Contains("group"))
+            {
+                queryString = queryString.Substring(0, queryString.IndexOf(" group by"));
+            }
+            if (query.Contains("order"))
+            {
+                queryString = queryString.Substring(0, queryString.IndexOf(" order by"));
+            }
+            query = queryString.Split(new char[] { ' ' });
             string queryCondition = string.Empty;
             StringBuilder whereCondition = new StringBuilder();
             for (int count = 0; count < query.Length; count++)
@@ -196,7 +296,7 @@ namespace DbEngine.Query.Parser
             {
                 return new List<Restriction>();
             }
-
+            whereCondition = whereCondition.Replace("where ", "");
             queryCondition = whereCondition.ToString().Trim();
 
             string[] conditions = null;
@@ -209,9 +309,9 @@ namespace DbEngine.Query.Parser
                     conditions[count] = conditions[count].Trim();
                 }
             }
-            else if (queryCondition.IndexOf("or") > 1)
+            else if (queryCondition.IndexOf(" or ") > 1)
             {
-                conditions = queryCondition.Split("or");
+                conditions = queryCondition.Split(new string[] { " or " }, StringSplitOptions.None);
             }
 
             if (conditions == null)
@@ -228,7 +328,7 @@ namespace DbEngine.Query.Parser
             foreach (string fields in conditions)
             {
                 // if(fieldCount == 0 && conditions.Length > 1)
-                if (fieldCount == 0 && fields.IndexOf("or") > 1)
+                if (fieldCount == 0 && fields.IndexOf(" or ") > 1)
                 {
                     orConditions = fields.Split("or");
                     conditionFields = orConditions[0].Split(new char[] { ' ' });
@@ -349,7 +449,7 @@ namespace DbEngine.Query.Parser
         private List<string> GetOrderByFields(string queryString)
         {
             List<string> orderByFieldList = new List<string>();
-            string[] orderByColumns = null;
+            string[] orderByColumns = new string[] { };
             if (queryString.IndexOf("order by") < 1) return orderByColumns.ToList();
 
             string[] query = queryString.Split("order by");
