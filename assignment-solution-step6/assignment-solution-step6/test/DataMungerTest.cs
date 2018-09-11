@@ -482,7 +482,7 @@ namespace test
                 exception.GetType().ToString().Should().Be("System.IO.FileNotFoundException");
             }
             object rowList = null;
-            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("7", out rowList);
+            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("8", out rowList);
 
             GroupDataSet groupDataSet = new GroupDataSet();
             groupDataSet.GroupedDataSet.Add("city", "Chennai");
@@ -511,7 +511,7 @@ namespace test
                 exception.GetType().ToString().Should().Be("System.IO.FileNotFoundException");
             }
             object rowList = null;
-            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("7", out rowList);
+            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("8", out rowList);
 
             GroupDataSet groupDataSet = new GroupDataSet();
             groupDataSet.GroupedDataSet.Add("max(win_by_wickets)", "9");
@@ -538,7 +538,7 @@ namespace test
                 exception.GetType().ToString().Should().Be("System.IO.FileNotFoundException");
             }
             object rowList = null;
-            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("7", out rowList);
+            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("8", out rowList);
 
             GroupDataSet groupDataSet = new GroupDataSet();
             groupDataSet.GroupedDataSet.Add("min(season)", "2008");
@@ -566,7 +566,7 @@ namespace test
             }
 
             object rowList = null;
-            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("30", out rowList);
+            ((GroupDataSet)dataSet).GroupedDataSet.TryGetValue("18", out rowList);
 
             GroupDataSet groupDataSet = new GroupDataSet();
             groupDataSet.GroupedDataSet.Add("sum(season)", "4032");
@@ -724,7 +724,6 @@ namespace test
                             counter++;
                         }
                     }
-
                     recordscounter++;
                 }
                 if (counter > 2)
