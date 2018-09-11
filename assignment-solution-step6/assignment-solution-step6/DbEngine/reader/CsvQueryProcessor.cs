@@ -709,6 +709,7 @@ namespace DbEngine.Reader
         private DataSet ParseGroupByAggregateFunctions(QueryParameter queryParameter)
         {
             var dataSet = new GroupDataSet();
+            _header = GetHeader();
             var fileContents = File.ReadLines(_fileName).ToList();
             fileContents.RemoveAt(0);
             Dictionary<string, (int sum, int min, int max, int count)> dictionary = new Dictionary<string, (int sum, int min, int max, int count)>();
@@ -723,13 +724,46 @@ namespace DbEngine.Reader
                     var fieldValue = contents[groupFieldIndex];
                     dictionary = AddValue(dictionary, fieldValue, contents[selectFieldIndex]);
                 }
+                dictionary = dictionary.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
                 //TODO: Incomplete due to Improper requirement
                 foreach (var item in dictionary)
                 {
+                    //var aggregateFunction = queryParameter.AggregateFunctions[0];
+                    // dataSet.GroupedDataSet.Add(groupField, item.Key);
+                    //dataSet.GroupedDataSet.Add($"{aggregateFunction.GetFunction}({aggregateFunction.GetField})", GetGroupedValue(item.Key, item.Value, queryParameter));
+                    dataSet.GroupedDataSet.Add(item.Key, GetGroupedValue(item.Key, item.Value, queryParameter));
                 }
             }
 
-            return null;
+            return dataSet;
+        }
+
+        private object GetGroupedValue(string key, (int sum, int min, int max, int count) value, QueryParameter queryParameter)
+        {
+            string[] values = new string[] { key, "" };
+            switch (queryParameter.AggregateFunctions[0]?.GetFunction)
+            {
+                case "sum":
+                    values[1] = value.sum.ToString();
+                    break;
+
+                case "count":
+                    values[1] = value.count.ToString();
+                    break;
+
+                case "min":
+                    values[1] = value.min.ToString();
+                    break;
+
+                case "max":
+                    values[1] = value.max.ToString();
+                    break;
+
+                case "avg":
+                    values[1] = Math.Round(Convert.ToDouble(value.sum) / value.count, 2).ToString();
+                    break;
+            }
+            return values;
         }
 
         private Dictionary<string, (int sum, int min, int max, int count)> AddValue(
