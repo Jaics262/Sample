@@ -9,6 +9,7 @@ public class PollerLoggerFactory
     private readonly LoggingConfiguration _logConfig;
     private readonly string _fileNameTemplate;
     private readonly string _fileLayout;
+    private readonly int _maxArchiveDays;
     private readonly HashSet<string> _registeredPollers = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _sync = new();
 
@@ -17,6 +18,9 @@ public class PollerLoggerFactory
         _logConfig = new LoggingConfiguration();
         _fileNameTemplate = config.GetValue("NLog:targets:logfile:fileName");
         _fileLayout = config.GetValue("NLog:targets:logfile:layout");
+        _maxArchiveDays = int.TryParse(config.GetValue("NLog:targets:logfile:maxArchiveDays"), out var days)
+            ? days
+            : 0;
 
         var consoleTarget = new ConsoleTarget(config.GetValue("NLog:targets:console:type"))
         {
@@ -38,7 +42,8 @@ public class PollerLoggerFactory
                 var fileTarget = new FileTarget($"{pollerName}File")
                 {
                     FileName = string.Format(_fileNameTemplate, pollerName),
-                    Layout = _fileLayout
+                    Layout = _fileLayout,
+                    MaxArchiveDays = _maxArchiveDays
                 };
 
                 _logConfig.AddRule(LogLevel.Info, LogLevel.Fatal, fileTarget, pollerName);
