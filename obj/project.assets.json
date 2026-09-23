@@ -934,17 +934,17 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\jaics\\.nuget\\packages\\": {},
+    "C:\\Users\\jaics\\AppData\\Local\\Temp\\cursor-sandbox-cache\\881a76f1a8ad89b72f91a0b047e047b3\\nuget": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Projects\\POC\\POC.csproj",
+      "projectUniqueName": "C:\\Projects\\POC\\POC.csproj",
       "projectName": "POC",
-      "projectPath": "c:\\Projects\\POC\\POC.csproj",
-      "packagesPath": "C:\\Users\\jaics\\.nuget\\packages\\",
-      "outputPath": "c:\\Projects\\POC\\obj\\",
+      "projectPath": "C:\\Projects\\POC\\POC.csproj",
+      "packagesPath": "C:\\Users\\jaics\\AppData\\Local\\Temp\\cursor-sandbox-cache\\881a76f1a8ad89b72f91a0b047e047b3\\nuget",
+      "outputPath": "C:\\Projects\\POC\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
