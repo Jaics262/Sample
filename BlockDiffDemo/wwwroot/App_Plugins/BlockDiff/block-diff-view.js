@@ -6,6 +6,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #timer = 0;
   #auth;
   #diff;
+  #versions = [];
 
   constructor() {
     super();
@@ -26,6 +27,10 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         .pickers { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; margin-bottom: 18px; }
         .pickers label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; min-width: 220px; color: var(--uui-color-text, #1b264f); }
         .pickers label.show { min-width: 180px; }
+        .preview-link { align-self: center; font-size: 13px; font-weight: 700; color: var(--uui-color-selected, #1b264f); }
+        button.chip { font: inherit; border: 0; cursor: pointer; color: var(--uui-color-text, #1b264f); }
+        button.chip:hover, .preview-link:hover { text-decoration: underline; }
+        .property, .block, .field, .nested { scroll-margin-top: 16px; }
         .pickers select { font: inherit; color: var(--uui-color-text, #1b264f); padding: 8px 10px; border: 1px solid var(--uui-color-border, #d8d7e9); border-radius: 3px; background: var(--uui-color-surface, #fff); }
         .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
         .chip { border-radius: 99px; padding: 4px 10px; font-size: 13px; background: var(--uui-color-surface-alt, #f3f3f5); color: var(--uui-color-text, #1b264f); }
@@ -55,11 +60,13 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         .error { border-color: var(--uui-color-danger, #f1c4c4); background: var(--uui-color-danger-emphasis, #fff6f6); color: var(--uui-color-danger-standalone, #a12626); }
       </style>
       <div class="block-diff">
-        <h1>Block diff</h1>
+        <h1>Compare versions</h1>
         <p class="lead">Text fields and Block List items, including blocks nested inside a block. Each field is labelled with its property group. Added, removed, and changed values are marked, and changed words are highlighted. Colors follow the backoffice theme.</p>
         <div class="pickers">
           <label>From<select id="from"></select></label>
+          <a id="preview-from" class="preview-link" target="_blank" rel="noopener" hidden>Preview this version</a>
           <label>To<select id="to"></select></label>
+          <a id="preview-to" class="preview-link" target="_blank" rel="noopener" hidden>Preview this version</a>
           <label class="show">Show
             <select id="filter">
               <option value="all">Show all</option>
@@ -71,8 +78,14 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         <div id="result"><p class="empty">Loading versions…</p></div>
       </div>`;
 
-    this.querySelector("#from").addEventListener("change", () => this.#compare());
-    this.querySelector("#to").addEventListener("change", () => this.#compare());
+    this.querySelector("#from").addEventListener("change", () => {
+      this.#updatePreviewLinks();
+      this.#compare();
+    });
+    this.querySelector("#to").addEventListener("change", () => {
+      this.#updatePreviewLinks();
+      this.#compare();
+    });
     this.querySelector("#filter").addEventListener("change", () => {
       if (this.#diff) {
         this.#render(this.#diff);
@@ -104,6 +117,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     try {
       const data = await this.#api(`/umbraco/management/api/v1/block-diff/content/${this.#contentId}/versions`);
       const versions = data.versions ?? data.Versions ?? [];
+      this.#versions = versions;
       this.#fillSelect("#from", versions);
       this.#fillSelect("#to", versions);
       if (versions.length > 1) {
@@ -111,6 +125,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         this.querySelector("#to").value = String(versions[0].id ?? versions[0].Id);
       }
 
+      this.#updatePreviewLinks();
       await this.#compare();
     } catch (error) {
       result.innerHTML = `<p class="error">${this.#text(error.message)}</p>`;
@@ -158,10 +173,26 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     countChip.textContent = count === 0 ? "No changes" : `${count} change${count === 1 ? "" : "s"}`;
     summary.append(countChip);
     for (const line of lines) {
-      const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.textContent = line;
-      summary.append(chip);
+      const text = typeof line === "string" ? line : line.text ?? line.Text ?? "";
+      const target = typeof line === "string" ? "" : line.target ?? line.Target ?? "";
+      if (!target) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = text;
+        summary.append(chip);
+        continue;
+      }
+
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "chip";
+      link.textContent = text;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.#openSection(target);
+      });
+      summary.append(link);
     }
     result.append(summary);
 
@@ -212,6 +243,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
 
     const box = document.createElement("section");
     box.className = `property ${status}`;
+    this.#mark(box, property.anchor ?? property.Anchor);
     box.append(this.#header(property.name ?? property.Name, status, "h2"));
     if (kind === "blocks") {
       const body = document.createElement("div");
@@ -262,6 +294,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
 
     const box = document.createElement("article");
     box.className = `block ${status}`;
+    this.#mark(box, block.anchor ?? block.Anchor);
     box.append(this.#header(block.label ?? block.Label ?? block.name ?? block.Name, status, "h3"));
     const fields = document.createElement("div");
     fields.className = "fields";
@@ -291,6 +324,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
 
       const wrap = document.createElement("div");
       wrap.className = "nested";
+      this.#mark(wrap, field.anchor ?? field.Anchor);
       const title = document.createElement("strong");
       title.textContent = field.name ?? field.Name;
       wrap.append(title);
@@ -306,6 +340,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
 
     const row = document.createElement("div");
     row.className = `field ${status}`;
+    this.#mark(row, field.anchor ?? field.Anchor);
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = field.name ?? field.Name;
@@ -361,6 +396,35 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     }
 
     return cell;
+  }
+
+  #updatePreviewLinks() {
+    this.#setPreview("#preview-from", this.querySelector("#from").value);
+    this.#setPreview("#preview-to", this.querySelector("#to").value);
+  }
+
+  #setPreview(selector, versionId) {
+    const link = this.querySelector(selector);
+    const version = this.#versions.find((item) => String(item.id ?? item.Id) === String(versionId));
+    const url = version?.previewUrl ?? version?.PreviewUrl ?? "";
+    link.href = url || "#";
+    link.hidden = url.length === 0;
+  }
+
+  #openSection(target) {
+    const found = () => this.querySelector(`#${CSS.escape(target)}`);
+    if (!found() && this.#diff && this.querySelector("#filter").value !== "all") {
+      this.querySelector("#filter").value = "all";
+      this.#render(this.#diff);
+    }
+
+    found()?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  #mark(element, anchor) {
+    if (anchor) {
+      element.id = anchor;
+    }
   }
 
   #header(title, status, tag) {
@@ -465,11 +529,11 @@ export const onInit = (_host, extensionRegistry) => {
   extensionRegistry.register({
     type: "workspaceView",
     alias: "BlockDiff.WorkspaceView",
-    name: "Block diff",
+    name: "Compare versions",
     element: BlockDiffWorkspaceView,
-    weight: 850,
+    weight: 150,
     meta: {
-      label: "Block diff",
+      label: "Compare versions",
       pathname: "block-diff",
       icon: "icon-list",
     },

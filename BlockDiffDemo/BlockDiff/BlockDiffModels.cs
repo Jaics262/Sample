@@ -18,6 +18,8 @@ public sealed class VersionListItem
     public bool IsCurrent { get; set; }
 
     public string Label { get; set; } = "";
+
+    public string PreviewUrl { get; set; } = "";
 }
 
 public sealed class DiffResponse
@@ -28,11 +30,18 @@ public sealed class DiffResponse
 
     public string ToLabel { get; set; } = "";
 
-    public IReadOnlyList<string> Summary { get; set; } = [];
+    public IReadOnlyList<DiffSummaryItem> Summary { get; set; } = [];
 
     public int ChangeCount { get; set; }
 
     public IReadOnlyList<DiffProperty> Properties { get; set; } = [];
+}
+
+public sealed class DiffSummaryItem
+{
+    public string Text { get; set; } = "";
+
+    public string Target { get; set; } = "";
 }
 
 public sealed class DiffProperty
@@ -40,6 +49,8 @@ public sealed class DiffProperty
     public string Name { get; set; } = "";
 
     public string Alias { get; set; } = "";
+
+    public string Anchor { get; set; } = "";
 
     public string Kind { get; set; } = "text";
 
@@ -58,6 +69,8 @@ public sealed class DiffBlock
 
     public string Label { get; set; } = "";
 
+    public string Anchor { get; set; } = "";
+
     public string Status { get; set; } = "unchanged";
 
     public IReadOnlyList<DiffField> Fields { get; set; } = [];
@@ -66,6 +79,8 @@ public sealed class DiffBlock
 public sealed class DiffField
 {
     public string Name { get; set; } = "";
+
+    public string Anchor { get; set; } = "";
 
     public string Status { get; set; } = "unchanged";
 

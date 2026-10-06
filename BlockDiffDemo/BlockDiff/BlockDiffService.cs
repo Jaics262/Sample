@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Extensions;
 
 namespace BlockDiffDemo.BlockDiff;
 
@@ -34,6 +35,7 @@ public class BlockDiffService
             IsPublished = version.Published,
             IsCurrent = index == 0,
             Label = Label(version, index == 0),
+            PreviewUrl = PreviewUrl(content.Key, version.VersionId),
         }).ToList();
 
         return new VersionListResponse
@@ -61,7 +63,7 @@ public class BlockDiffService
         var contentType = _contentTypeService.Get(current.ContentTypeId);
         var groups = GroupNames(contentType);
         var elementTypes = new Dictionary<Guid, IContentType>();
-        var summary = new List<string>();
+        var summary = new List<DiffSummaryItem>();
         var properties = new List<DiffProperty>();
 
         var propertyTypes = contentType is null
@@ -72,6 +74,7 @@ public class BlockDiffService
             var displayName = WithGroup(groups.GetValueOrDefault(propertyType.Alias), propertyType.Name);
             var fromValue = from.GetValue(propertyType.Alias);
             var toValue = to.GetValue(propertyType.Alias);
+            var anchor = SectionAnchor(propertyType.Alias);
             if (propertyType.PropertyEditorAlias == Constants.PropertyEditors.Aliases.BlockList)
             {
                 var blocks = DiffBlocks(ReadBlocks(fromValue, elementTypes), ReadBlocks(toValue, elementTypes), summary, displayName);
@@ -79,6 +82,7 @@ public class BlockDiffService
                 {
                     Name = displayName,
                     Alias = propertyType.Alias,
+                    Anchor = anchor,
                     Kind = "blocks",
                     Status = blocks.Any(block => block.Status != "unchanged") ? "changed" : "unchanged",
                     Blocks = blocks,
@@ -91,13 +95,14 @@ public class BlockDiffService
             var status = StatusOf(fromText, toText);
             if (status != "unchanged")
             {
-                summary.Add($"{displayName} {status}");
+                AddSummary(summary, $"{displayName} {status}", anchor);
             }
 
             properties.Add(new DiffProperty
             {
                 Name = displayName,
                 Alias = propertyType.Alias,
+                Anchor = anchor,
                 Kind = "text",
                 Status = status,
                 From = fromText,
@@ -117,7 +122,7 @@ public class BlockDiffService
         };
     }
 
-    private List<DiffBlock> DiffBlocks(IReadOnlyList<ParsedBlock> fromBlocks, IReadOnlyList<ParsedBlock> toBlocks, List<string> summary, string? parentName)
+    private List<DiffBlock> DiffBlocks(IReadOnlyList<ParsedBlock> fromBlocks, IReadOnlyList<ParsedBlock> toBlocks, List<DiffSummaryItem> summary, string? parentName)
     {
         var fromByKey = fromBlocks.ToDictionary(block => block.Key);
         var toKeys = toBlocks.Select(block => block.Key).ToHashSet();
@@ -127,8 +132,8 @@ public class BlockDiffService
         {
             if (!fromByKey.TryGetValue(toBlock.Key, out var fromBlock))
             {
-                summary.Add(Describe(parentName, toBlock.Label, "added"));
-                result.Add(ToDiffBlock(toBlock, "added", toBlock.Fields.Select(field => FieldAdded(field, summary, toBlock.Label)).ToList()));
+                AddSummary(summary, Describe(parentName, toBlock.Label, "added"), BlockAnchor(toBlock.Key));
+                result.Add(ToDiffBlock(toBlock, "added", toBlock.Fields.Select(field => FieldAdded(field, toBlock.Key)).ToList()));
                 continue;
             }
 
@@ -139,7 +144,7 @@ public class BlockDiffService
             {
                 var fromField = fromBlock.Fields.FirstOrDefault(field => field.Alias == alias);
                 var toField = toBlock.Fields.FirstOrDefault(field => field.Alias == alias);
-                var field = DiffFieldPair(fromField, toField, summary, toBlock.Label);
+                var field = DiffFieldPair(fromField, toField, summary, toBlock.Label, toBlock.Key);
                 if (field.Status != "unchanged")
                 {
                     changed = true;
@@ -153,10 +158,11 @@ public class BlockDiffService
 
         foreach (var fromBlock in fromBlocks.Where(block => !toKeys.Contains(block.Key)))
         {
-            summary.Add(Describe(parentName, fromBlock.Label, "removed"));
+            AddSummary(summary, Describe(parentName, fromBlock.Label, "removed"), BlockAnchor(fromBlock.Key));
             result.Add(ToDiffBlock(fromBlock, "removed", fromBlock.Fields.Select(field => new DiffField
             {
                 Name = field.Name,
+                Anchor = FieldAnchor(fromBlock.Key, field.Alias),
                 Status = "removed",
                 From = field.Text,
             }).ToList()));
@@ -165,14 +171,16 @@ public class BlockDiffService
         return result;
     }
 
-    private DiffField DiffFieldPair(ParsedField? fromField, ParsedField? toField, List<string> summary, string blockLabel)
+    private DiffField DiffFieldPair(ParsedField? fromField, ParsedField? toField, List<DiffSummaryItem> summary, string blockLabel, Guid blockKey)
     {
         var name = toField?.Name ?? fromField?.Name ?? "Field";
+        var alias = toField?.Alias ?? fromField?.Alias ?? "field";
+        var anchor = FieldAnchor(blockKey, alias);
         if (fromField?.Blocks is not null || toField?.Blocks is not null)
         {
             var nested = DiffBlocks(fromField?.Blocks ?? [], toField?.Blocks ?? [], summary, blockLabel);
             var status = nested.Any(block => block.Status != "unchanged") ? "changed" : "unchanged";
-            return new DiffField { Name = name, Status = status, Blocks = nested };
+            return new DiffField { Name = name, Anchor = anchor, Status = status, Blocks = nested };
         }
 
         var fromText = fromField?.Text ?? "";
@@ -180,31 +188,35 @@ public class BlockDiffService
         var fieldStatus = StatusOf(fromText, toText);
         if (fieldStatus != "unchanged")
         {
-            summary.Add($"{blockLabel}: {name} {fieldStatus}");
+            AddSummary(summary, $"{blockLabel}: {name} {fieldStatus}", anchor);
         }
 
-        return new DiffField { Name = name, Status = fieldStatus, From = fromText, To = toText };
+        return new DiffField { Name = name, Anchor = anchor, Status = fieldStatus, From = fromText, To = toText };
     }
 
-    private static DiffField FieldAdded(ParsedField field, List<string> summary, string blockLabel)
+    private static DiffField FieldAdded(ParsedField field, Guid blockKey)
     {
         if (field.Blocks is not null)
         {
             return new DiffField
             {
                 Name = field.Name,
+                Anchor = FieldAnchor(blockKey, field.Alias),
                 Status = "added",
-                Blocks = field.Blocks.Select(block => new DiffBlock
-                {
-                    Name = block.ElementName,
-                    Label = block.Label,
-                    Status = "added",
-                    Fields = block.Fields.Select(nested => new DiffField { Name = nested.Name, Status = "added", To = nested.Text }).ToList(),
-                }).ToList(),
+                Blocks = field.Blocks.Select(block => ToDiffBlock(
+                    block,
+                    "added",
+                    block.Fields.Select(nested => FieldAdded(nested, block.Key)).ToList())).ToList(),
             };
         }
 
-        return new DiffField { Name = field.Name, Status = "added", To = field.Text };
+        return new DiffField
+        {
+            Name = field.Name,
+            Anchor = FieldAnchor(blockKey, field.Alias),
+            Status = "added",
+            To = field.Text,
+        };
     }
 
     private static DiffBlock ToDiffBlock(ParsedBlock block, string status, IReadOnlyList<DiffField> fields)
@@ -212,6 +224,7 @@ public class BlockDiffService
         {
             Name = block.ElementName,
             Label = block.Label,
+            Anchor = BlockAnchor(block.Key),
             Status = status,
             Fields = fields,
         };
@@ -475,6 +488,18 @@ public class BlockDiffService
 
     private static string WithGroup(string? group, string name)
         => string.IsNullOrWhiteSpace(group) ? name : $"{group} -> {name}";
+
+    private static string PreviewUrl(Guid contentKey, int versionId)
+        => $"/ucrbp?cid={contentKey:D}&vid={versionId.ToGuid():D}";
+
+    private static string SectionAnchor(string alias) => $"section-{alias}";
+
+    private static string BlockAnchor(Guid key) => $"block-{key:N}";
+
+    private static string FieldAnchor(Guid blockKey, string alias) => $"field-{blockKey:N}-{alias}";
+
+    private static void AddSummary(List<DiffSummaryItem> summary, string text, string target)
+        => summary.Add(new DiffSummaryItem { Text = text, Target = target });
 
     private static string Label(IContent version, bool isCurrent)
     {
