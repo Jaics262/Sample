@@ -1,0 +1,35 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@Model.Value("title")</title>
+    <style>
+        body { font-family: Georgia, serif; margin: 0; color: #1b264f; background: #fff; }
+        main { max-width: 720px; margin: 0 auto; padding: 32px 24px 64px; }
+        .banner { background: #1b264f; color: #fff; padding: 10px 24px; letter-spacing: .04em; text-transform: uppercase; font-family: Lato, sans-serif; font-size: 13px; }
+        h1 { font-size: 40px; margin: 0 0 12px; }
+        .intro { font-size: 18px; line-height: 1.5; color: #515160; }
+        article { border-top: 1px solid #e3e3e8; padding: 20px 0; }
+        h2 { margin: 0 0 8px; font-size: 26px; }
+        blockquote { margin: 0; font-size: 22px; }
+        blockquote footer { margin-top: 8px; color: #76748f; font-size: 14px; }
+        ul { padding-left: 18px; }
+    </style>
+</head>
+<body>
+    @if (Model.Value<bool>("showBanner"))
+    {
+        <p class="banner">Campaign banner</p>
+    }
+    <main>
+        <h1>@Model.Value("title")</h1>
+        <p class="intro">@Model.Value("intro")</p>
+        <div class="story">@Model.Value("story")</div>
+        @await Html.GetBlockListHtmlAsync(Model, "sections")
+    </main>
+</body>
+</html>

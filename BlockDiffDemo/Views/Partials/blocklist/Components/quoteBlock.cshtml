@@ -1,0 +1,7 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Core.Models.Blocks.BlockListItem>
+<article>
+    <blockquote>
+        @Model.Content.Value("quote")
+        <footer>@Model.Content.Value("attribution")</footer>
+    </blockquote>
+</article>

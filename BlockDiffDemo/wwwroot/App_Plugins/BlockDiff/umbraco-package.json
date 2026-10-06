@@ -1,0 +1,12 @@
+{
+  "name": "Block Diff Demo",
+  "version": "1.0.0",
+  "extensions": [
+    {
+      "type": "backofficeEntryPoint",
+      "alias": "BlockDiff.EntryPoint",
+      "name": "Block Diff Entry Point",
+      "js": "/App_Plugins/BlockDiff/block-diff-view.js?v=5"
+    }
+  ]
+}
