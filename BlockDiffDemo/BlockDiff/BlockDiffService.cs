@@ -12,11 +12,16 @@ public class BlockDiffService
 {
     private readonly IContentService _contentService;
     private readonly IContentTypeService _contentTypeService;
+    private readonly IContentVersionService _contentVersionService;
 
-    public BlockDiffService(IContentService contentService, IContentTypeService contentTypeService)
+    public BlockDiffService(
+        IContentService contentService,
+        IContentTypeService contentTypeService,
+        IContentVersionService contentVersionService)
     {
         _contentService = contentService;
         _contentTypeService = contentTypeService;
+        _contentVersionService = contentVersionService;
     }
 
     public VersionListResponse? GetVersions(Guid contentKey)
@@ -501,10 +506,12 @@ public class BlockDiffService
     private static void AddSummary(List<DiffSummaryItem> summary, string text, string target)
         => summary.Add(new DiffSummaryItem { Text = text, Target = target });
 
-    private static string Label(IContent version, bool isCurrent)
+    private string Label(IContent version, bool isCurrent)
     {
+        var name = _contentVersionService.Get(version.VersionId)?.Username;
+        var user = string.IsNullOrWhiteSpace(name) ? "Unknown user" : name.Trim();
         var state = version.Published ? "Published" : isCurrent ? "Current draft" : "Saved";
-        return $"{version.UpdateDate.ToLocalTime():dd MMM yyyy, HH:mm:ss} · {state}";
+        return $"{version.UpdateDate.ToLocalTime():dd MMM yyyy, HH:mm:ss} · {user} · {state}";
     }
 
     private static string Describe(string? parent, string label, string status)

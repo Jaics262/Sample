@@ -1,5 +1,7 @@
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_AUTH_CONTEXT } from "@umbraco-cms/backoffice/auth";
+import { UMB_ROLLBACK_MODAL } from "@umbraco-cms/backoffice/document";
+import { umbOpenModal } from "@umbraco-cms/backoffice/modal";
 
 class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #contentId = "";
@@ -26,11 +28,13 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         .block-diff h1 { margin: 0 0 6px; font-size: 24px; font-weight: 700; }
         .block-diff .lead { margin: 0 0 20px; color: var(--uui-color-text-alt, #515160); }
         .pickers { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; margin-bottom: 18px; }
-        .pickers label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; min-width: 220px; color: var(--uui-color-text, #1b264f); }
+        .pickers label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; min-width: 340px; color: var(--uui-color-text, #1b264f); }
         .pickers label.show { min-width: 180px; }
-        .preview-link { align-self: center; font-size: 13px; font-weight: 700; color: var(--uui-color-selected, #1b264f); }
+        .version-links { display: flex; gap: 16px; align-items: center; font-weight: 400; }
+        .preview-link, .rollback-link { font-size: 13px; font-weight: 700; color: var(--uui-color-selected, #1b264f); }
+        .rollback-link { border: 0; background: transparent; padding: 0; cursor: pointer; font-family: inherit; }
         button.chip { font: inherit; border: 0; cursor: pointer; color: var(--uui-color-text, #1b264f); }
-        button.chip:hover, .preview-link:hover { text-decoration: underline; }
+        button.chip:hover, .preview-link:hover, .rollback-link:hover { text-decoration: underline; }
         .property, .block, .field, .nested { scroll-margin-top: 16px; }
         .pickers select { font: inherit; color: var(--uui-color-text, #1b264f); padding: 8px 10px; border: 1px solid var(--uui-color-border, #d8d7e9); border-radius: 3px; background: var(--uui-color-surface, #fff); }
         .summary-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -67,10 +71,20 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         <h1>Compare versions</h1>
         <p class="lead">Text fields and Block List items, including blocks nested inside a block. Each field is labelled with its property group. Added, removed, and changed values are marked, and changed words are highlighted. Colors follow the backoffice theme.</p>
         <div class="pickers">
-          <label>From<select id="from"></select></label>
-          <a id="preview-from" class="preview-link" target="_blank" rel="noopener" hidden>Preview this version</a>
-          <label>To<select id="to"></select></label>
-          <a id="preview-to" class="preview-link" target="_blank" rel="noopener" hidden>Preview this version</a>
+          <label>From
+            <select id="from"></select>
+            <span class="version-links">
+              <a id="preview-from" class="preview-link" target="_blank" rel="noopener" hidden>Preview this version</a>
+              <button type="button" id="rollback-from" class="rollback-link" hidden>Rollback</button>
+            </span>
+          </label>
+          <label>To
+            <select id="to"></select>
+            <span class="version-links">
+              <a id="preview-to" class="preview-link" target="_blank" rel="noopener" hidden>Preview this version</a>
+              <button type="button" id="rollback-to" class="rollback-link" hidden>Rollback</button>
+            </span>
+          </label>
           <label class="show">Show
             <select id="filter">
               <option value="all">Show all</option>
@@ -95,6 +109,8 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         this.#render(this.#diff);
       }
     });
+    this.querySelector("#rollback-from").addEventListener("click", (event) => this.#openRollback(event));
+    this.querySelector("#rollback-to").addEventListener("click", (event) => this.#openRollback(event));
     this.#syncContent();
     this.#timer = window.setInterval(() => this.#syncContent(), 600);
   }
@@ -421,16 +437,60 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   }
 
   #updatePreviewLinks() {
-    this.#setPreview("#preview-from", this.querySelector("#from").value);
-    this.#setPreview("#preview-to", this.querySelector("#to").value);
+    this.#setPreview("#preview-from", "#rollback-from", this.querySelector("#from").value);
+    this.#setPreview("#preview-to", "#rollback-to", this.querySelector("#to").value);
   }
 
-  #setPreview(selector, versionId) {
-    const link = this.querySelector(selector);
+  #setPreview(previewSelector, rollbackSelector, versionId) {
+    const link = this.querySelector(previewSelector);
+    const rollback = this.querySelector(rollbackSelector);
     const version = this.#versions.find((item) => String(item.id ?? item.Id) === String(versionId));
     const url = version?.previewUrl ?? version?.PreviewUrl ?? "";
     link.href = url || "#";
     link.hidden = url.length === 0;
+    rollback.hidden = !version;
+    rollback.dataset.versionKey = versionKeyFromPreview(url);
+  }
+
+  async #openRollback(event) {
+    event.preventDefault();
+    const versionKey = event.currentTarget.dataset.versionKey ?? "";
+    const pending = umbOpenModal(this, UMB_ROLLBACK_MODAL, {}).catch(() => undefined);
+    if (versionKey) {
+      void this.#selectRollbackVersion(versionKey);
+    }
+
+    await pending;
+  }
+
+  async #selectRollbackVersion(versionKey) {
+    const wanted = versionKey.toLowerCase();
+    const deadline = Date.now() + 8000;
+    let steady = 0;
+    while (Date.now() < deadline) {
+      const modal = findRollbackModal(document);
+      const versions = modal?._versions ?? [];
+      const root = modal?.shadowRoot ?? modal;
+      const items = root?.querySelectorAll(".rollback-item") ?? [];
+      if (modal && versions.length && modal._selectedVersion && items.length === versions.length) {
+        const index = versions.findIndex((item) => String(item.id).toLowerCase() === wanted);
+        if (index < 0) {
+          return;
+        }
+
+        if (String(modal._selectedVersion.id).toLowerCase() === wanted) {
+          steady += 1;
+          if (steady >= 3) {
+            return;
+          }
+        } else {
+          steady = 0;
+          items[index].click();
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
   #openSection(target) {
@@ -493,6 +553,36 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #text(value) {
     return value ?? "Something went wrong.";
   }
+}
+
+function versionKeyFromPreview(url) {
+  if (!url) {
+    return "";
+  }
+
+  try {
+    return new URL(url, window.location.origin).searchParams.get("vid") ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function findRollbackModal(root) {
+  const direct = root.querySelector?.("rp-rollback-modal");
+  if (direct) {
+    return direct;
+  }
+
+  for (const node of root.querySelectorAll?.("*") ?? []) {
+    if (node.shadowRoot) {
+      const found = findRollbackModal(node.shadowRoot);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
 }
 
 function wordDiff(from, other) {

@@ -6,7 +6,7 @@
       "type": "backofficeEntryPoint",
       "alias": "BlockDiff.EntryPoint",
       "name": "Block Diff Entry Point",
-      "js": "/App_Plugins/BlockDiff/block-diff-view.js?v=9"
+      "js": "/App_Plugins/BlockDiff/block-diff-view.js?v=12"
     }
   ]
 }
