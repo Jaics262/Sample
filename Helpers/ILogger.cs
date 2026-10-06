@@ -7,7 +7,5 @@ public interface ILogger{
     void Debug(string message);
     void Trace(string message);
     void Fatal(string message);
-    void Critical(string message);
-    void Alert(string message);
      
 }
