@@ -470,8 +470,7 @@ umbraco-package-schema.json
 # Temp folder containing Examine indexes, NuCache, MediaCache, etc.
 /umbraco/Data/TEMP/
 
-# SQLite database files
-/umbraco/Data/*.sqlite.db
+# SQLite database files. The demo database is kept so a clone has the seeded versions.
 /umbraco/Data/*.sqlite.db-shm
 /umbraco/Data/*.sqlite.db-wal
 
