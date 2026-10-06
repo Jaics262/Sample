@@ -59,6 +59,7 @@ public class BlockDiffService
         }
 
         var contentType = _contentTypeService.Get(current.ContentTypeId);
+        var groups = GroupNames(contentType);
         var elementTypes = new Dictionary<Guid, IContentType>();
         var summary = new List<string>();
         var properties = new List<DiffProperty>();
@@ -68,14 +69,15 @@ public class BlockDiffService
             : contentType.CompositionPropertyTypes.OrderBy(property => property.SortOrder);
         foreach (var propertyType in propertyTypes)
         {
+            var displayName = WithGroup(groups.GetValueOrDefault(propertyType.Alias), propertyType.Name);
             var fromValue = from.GetValue(propertyType.Alias);
             var toValue = to.GetValue(propertyType.Alias);
             if (propertyType.PropertyEditorAlias == Constants.PropertyEditors.Aliases.BlockList)
             {
-                var blocks = DiffBlocks(ReadBlocks(fromValue, elementTypes), ReadBlocks(toValue, elementTypes), summary, propertyType.Name);
+                var blocks = DiffBlocks(ReadBlocks(fromValue, elementTypes), ReadBlocks(toValue, elementTypes), summary, displayName);
                 properties.Add(new DiffProperty
                 {
-                    Name = propertyType.Name,
+                    Name = displayName,
                     Alias = propertyType.Alias,
                     Kind = "blocks",
                     Status = blocks.Any(block => block.Status != "unchanged") ? "changed" : "unchanged",
@@ -89,12 +91,12 @@ public class BlockDiffService
             var status = StatusOf(fromText, toText);
             if (status != "unchanged")
             {
-                summary.Add($"{propertyType.Name} {status}");
+                summary.Add($"{displayName} {status}");
             }
 
             properties.Add(new DiffProperty
             {
-                Name = propertyType.Name,
+                Name = displayName,
                 Alias = propertyType.Alias,
                 Kind = "text",
                 Status = status,
@@ -258,6 +260,7 @@ public class BlockDiffService
                 ? parsedType
                 : Guid.Empty;
             var elementType = GetElementType(elementTypeKey, elementTypes);
+            var groups = GroupNames(elementType);
             var fields = new List<ParsedField>();
             if (data.TryGetProperty("values", out var values) && values.ValueKind == JsonValueKind.Array)
             {
@@ -265,14 +268,15 @@ public class BlockDiffService
                 {
                     var alias = value.TryGetProperty("alias", out var aliasProperty) ? aliasProperty.GetString() ?? "" : "";
                     var property = elementType?.CompositionPropertyTypes.FirstOrDefault(candidate => candidate.Alias == alias);
+                    var displayName = WithGroup(groups.GetValueOrDefault(alias), property?.Name ?? alias);
                     var stored = value.TryGetProperty("value", out var storedValue) ? storedValue : default;
                     if (TryGetBlockRoot(stored, out _))
                     {
-                        fields.Add(new ParsedField(alias, property?.Name ?? alias, null, ReadBlocks(stored, elementTypes)));
+                        fields.Add(new ParsedField(alias, displayName, null, ReadBlocks(stored, elementTypes)));
                         continue;
                     }
 
-                    fields.Add(new ParsedField(alias, property?.Name ?? alias, ReadScalar(stored), null));
+                    fields.Add(new ParsedField(alias, displayName, ReadScalar(stored), null));
                 }
             }
 
@@ -441,6 +445,36 @@ public class BlockDiffService
 
         return "changed";
     }
+
+    private static Dictionary<string, string> GroupNames(IContentType? contentType)
+    {
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (contentType is null)
+        {
+            return names;
+        }
+
+        var groups = contentType.CompositionPropertyGroups
+            .OrderBy(group => group.Type == PropertyGroupType.Group ? 0 : 1)
+            .ThenBy(group => group.SortOrder);
+        foreach (var group in groups)
+        {
+            if (string.IsNullOrWhiteSpace(group.Name) || group.PropertyTypes is null)
+            {
+                continue;
+            }
+
+            foreach (var property in group.PropertyTypes)
+            {
+                names.TryAdd(property.Alias, group.Name);
+            }
+        }
+
+        return names;
+    }
+
+    private static string WithGroup(string? group, string name)
+        => string.IsNullOrWhiteSpace(group) ? name : $"{group} -> {name}";
 
     private static string Label(IContent version, bool isCurrent)
     {

@@ -5,6 +5,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #contentId = "";
   #timer = 0;
   #auth;
+  #diff;
 
   constructor() {
     super();
@@ -18,51 +19,65 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     this.style.display = "block";
     this.innerHTML = `
       <style>
-        .block-diff { padding: 24px 28px 48px; max-width: 1080px; color: var(--uui-color-text, #1b264f); font-family: var(--uui-font-family, Lato, sans-serif); }
+        .block-diff { padding: 24px 28px 48px; max-width: 1080px; color: var(--uui-color-text, #1b264f); background: transparent; font-family: var(--uui-font-family, Lato, sans-serif); }
+        .block-diff h1, .block-diff h2, .block-diff h3, .block-diff .name { color: var(--uui-color-text, #1b264f); }
         .block-diff h1 { margin: 0 0 6px; font-size: 24px; font-weight: 700; }
         .block-diff .lead { margin: 0 0 20px; color: var(--uui-color-text-alt, #515160); }
         .pickers { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; margin-bottom: 18px; }
-        .pickers label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; min-width: 280px; }
-        .pickers select { font: inherit; padding: 8px 10px; border: 1px solid var(--uui-color-border, #d8d7e9); border-radius: 3px; background: #fff; }
+        .pickers label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; min-width: 220px; color: var(--uui-color-text, #1b264f); }
+        .pickers label.show { min-width: 180px; }
+        .pickers select { font: inherit; color: var(--uui-color-text, #1b264f); padding: 8px 10px; border: 1px solid var(--uui-color-border, #d8d7e9); border-radius: 3px; background: var(--uui-color-surface, #fff); }
         .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
-        .chip { border-radius: 99px; padding: 4px 10px; font-size: 13px; background: #f3f3f5; }
-        .chip.count { background: #1b264f; color: #fff; }
-        .property, .block { border: 1px solid var(--uui-color-border, #e3e3e8); border-radius: 6px; background: #fff; margin-bottom: 14px; overflow: hidden; }
-        .property header, .block header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 14px; background: #fafafa; }
+        .chip { border-radius: 99px; padding: 4px 10px; font-size: 13px; background: var(--uui-color-surface-alt, #f3f3f5); color: var(--uui-color-text, #1b264f); }
+        .chip.count { background: var(--uui-color-selected, #1b264f); color: var(--uui-color-selected-contrast, #fff); }
+        .property, .block { border: 1px solid var(--uui-color-border, #e3e3e8); border-radius: 6px; background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); margin-bottom: 14px; overflow: hidden; }
+        .property header, .block header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 14px; background: var(--uui-color-surface-alt, #fafafa); }
         .property h2, .block h3 { margin: 0; font-size: 16px; }
         .block h3 { font-size: 14px; }
         .fields { padding: 4px 14px 12px; }
-        .field { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid #f0f0f3; }
+        .field { display: grid; grid-template-columns: 180px 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--uui-color-border, #f0f0f3); }
         .field .name { font-weight: 700; font-size: 13px; }
-        .value { white-space: pre-wrap; font-size: 14px; }
-        .value small { display: block; color: #76748f; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+        .value { white-space: pre-wrap; font-size: 14px; color: var(--uui-color-text, #1b264f); }
+        .value small { display: block; color: var(--uui-color-text-alt, #76748f); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
         .diff-del { background: #fde2e2; color: #8d1f1f; text-decoration: line-through; border-radius: 2px; }
         .diff-ins { background: #d9f5e3; color: #0b7a32; border-radius: 2px; }
         .status { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-        .changed { box-shadow: inset 3px 0 0 #c47b00; }
-        .added { box-shadow: inset 3px 0 0 #0b7a32; }
-        .removed { box-shadow: inset 3px 0 0 #a12626; }
-        .changed .status { color: #8a5a00; }
-        .added .status { color: #0b7a32; }
-        .removed .status { color: #a12626; }
-        .removed .value { text-decoration: line-through; color: #76748f; }
+        .changed { box-shadow: inset 3px 0 0 var(--uui-color-warning, #c47b00); }
+        .added { box-shadow: inset 3px 0 0 var(--uui-color-positive, #0b7a32); }
+        .removed { box-shadow: inset 3px 0 0 var(--uui-color-danger, #a12626); }
+        .changed .status { color: var(--uui-color-warning, #8a5a00); }
+        .added .status { color: var(--uui-color-positive, #0b7a32); }
+        .removed .status { color: var(--uui-color-danger, #a12626); }
+        .removed .value { text-decoration: line-through; color: var(--uui-color-text-alt, #76748f); }
         .unchanged { opacity: .72; }
         .nested { margin: 8px 0 8px 16px; }
-        .empty, .error { padding: 16px; background: #fff; border: 1px solid #e3e3e8; border-radius: 6px; }
-        .error { border-color: #f1c4c4; background: #fff6f6; }
+        .empty, .error { padding: 16px; background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); border: 1px solid var(--uui-color-border, #e3e3e8); border-radius: 6px; }
+        .error { border-color: var(--uui-color-danger, #f1c4c4); background: var(--uui-color-danger-emphasis, #fff6f6); color: var(--uui-color-danger-standalone, #a12626); }
       </style>
       <div class="block-diff">
         <h1>Block diff</h1>
-        <p class="lead">Text fields and Block List items, including blocks nested inside a block. Added, removed, and changed values are marked. Changed words are highlighted in each column. Unchanged values stay on the page so the structure is visible.</p>
+        <p class="lead">Text fields and Block List items, including blocks nested inside a block. Each field is labelled with its property group. Added, removed, and changed values are marked, and changed words are highlighted. Colors follow the backoffice theme.</p>
         <div class="pickers">
           <label>From<select id="from"></select></label>
           <label>To<select id="to"></select></label>
+          <label class="show">Show
+            <select id="filter">
+              <option value="all">Show all</option>
+              <option value="changed">Show only differences</option>
+              <option value="unchanged">Show unchanged</option>
+            </select>
+          </label>
         </div>
         <div id="result"><p class="empty">Loading versions…</p></div>
       </div>`;
 
     this.querySelector("#from").addEventListener("change", () => this.#compare());
     this.querySelector("#to").addEventListener("change", () => this.#compare());
+    this.querySelector("#filter").addEventListener("change", () => {
+      if (this.#diff) {
+        this.#render(this.#diff);
+      }
+    });
     this.#syncContent();
     this.#timer = window.setInterval(() => this.#syncContent(), 600);
   }
@@ -124,7 +139,8 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
 
     result.innerHTML = `<p class="empty">Comparing…</p>`;
     try {
-      this.#render(await this.#api(`/umbraco/management/api/v1/block-diff/content/${this.#contentId}/compare?from=${from}&to=${to}`));
+      this.#diff = await this.#api(`/umbraco/management/api/v1/block-diff/content/${this.#contentId}/compare?from=${from}&to=${to}`);
+      this.#render(this.#diff);
     } catch (error) {
       result.innerHTML = `<p class="error">${this.#text(error.message)}</p>`;
     }
@@ -149,26 +165,78 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     }
     result.append(summary);
 
+    const mode = this.querySelector("#filter")?.value ?? "all";
+    const cards = [];
     for (const property of diff.properties ?? diff.Properties ?? []) {
-      result.append(this.#property(property));
+      const card = this.#property(property, mode);
+      if (card) {
+        cards.push(card);
+      }
+    }
+
+    if (cards.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = mode === "unchanged"
+        ? "Every field changed between these versions."
+        : mode === "changed"
+          ? "No differences between these versions."
+          : "This item has no properties.";
+      result.append(empty);
+      return;
+    }
+
+    for (const card of cards) {
+      result.append(card);
     }
   }
 
-  #property(property) {
+  #modeMatches(status, mode) {
+    if (mode === "unchanged") {
+      return status === "unchanged";
+    }
+
+    if (mode === "changed") {
+      return status !== "unchanged";
+    }
+
+    return true;
+  }
+
+  #property(property, mode) {
     const kind = property.kind ?? property.Kind;
+    const status = property.status ?? property.Status;
+    if (kind !== "blocks" && !this.#modeMatches(status, mode)) {
+      return null;
+    }
+
     const box = document.createElement("section");
-    box.className = `property ${property.status ?? property.Status}`;
-    box.append(this.#header(property.name ?? property.Name, property.status ?? property.Status, "h2"));
+    box.className = `property ${status}`;
+    box.append(this.#header(property.name ?? property.Name, status, "h2"));
     if (kind === "blocks") {
       const body = document.createElement("div");
       body.className = "fields";
       const blocks = property.blocks ?? property.Blocks ?? [];
-      if (blocks.length === 0) {
+      const visible = [];
+      for (const block of blocks) {
+        const card = this.#block(block, mode);
+        if (card) {
+          visible.push(card);
+        }
+      }
+
+      if (mode !== "all" && visible.length === 0) {
+        return null;
+      }
+
+      if (visible.length === 0) {
         body.append(this.#note("No blocks in either version."));
       }
-      for (const block of blocks) {
-        body.append(this.#block(block));
+
+      for (const card of visible) {
+        body.append(card);
       }
+
       box.append(body);
       return box;
     }
@@ -177,35 +245,67 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     return box;
   }
 
-  #block(block) {
+  #block(block, mode) {
+    const status = block.status ?? block.Status;
+    const sourceFields = block.fields ?? block.Fields ?? [];
+    const fieldNodes = [];
+    for (const field of sourceFields) {
+      const node = this.#field(field, mode);
+      if (node) {
+        fieldNodes.push(node);
+      }
+    }
+
+    if (mode !== "all" && fieldNodes.length === 0 && (sourceFields.length > 0 || !this.#modeMatches(status, mode))) {
+      return null;
+    }
+
     const box = document.createElement("article");
-    box.className = `block ${block.status ?? block.Status}`;
-    box.append(this.#header(block.label ?? block.Label ?? block.name ?? block.Name, block.status ?? block.Status, "h3"));
+    box.className = `block ${status}`;
+    box.append(this.#header(block.label ?? block.Label ?? block.name ?? block.Name, status, "h3"));
     const fields = document.createElement("div");
     fields.className = "fields";
-    for (const field of block.fields ?? block.Fields ?? []) {
-      fields.append(this.#field(field));
+    for (const node of fieldNodes) {
+      fields.append(node);
     }
     box.append(fields);
     return box;
   }
 
-  #field(field) {
+  #field(field, mode) {
     const nested = field.blocks ?? field.Blocks ?? [];
-    if (nested.length > 0 || (field.status ?? field.Status) === "changed" && nested.length === 0 && (field.from ?? field.From) == null && (field.to ?? field.To) == null && (field.blocks || field.Blocks)) {
+    const status = field.status ?? field.Status;
+    const nestedList = nested.length > 0 || ((field.blocks || field.Blocks) && (field.from ?? field.From) == null && (field.to ?? field.To) == null);
+    if (nestedList) {
+      const children = [];
+      for (const block of nested) {
+        const card = this.#block(block, mode);
+        if (card) {
+          children.push(card);
+        }
+      }
+
+      if (mode !== "all" && children.length === 0) {
+        return null;
+      }
+
       const wrap = document.createElement("div");
       wrap.className = "nested";
       const title = document.createElement("strong");
       title.textContent = field.name ?? field.Name;
       wrap.append(title);
-      for (const block of nested) {
-        wrap.append(this.#block(block));
+      for (const card of children) {
+        wrap.append(card);
       }
       return wrap;
     }
 
+    if (!this.#modeMatches(status, mode)) {
+      return null;
+    }
+
     const row = document.createElement("div");
-    row.className = `field ${field.status ?? field.Status}`;
+    row.className = `field ${status}`;
     const name = document.createElement("div");
     name.className = "name";
     name.textContent = field.name ?? field.Name;
