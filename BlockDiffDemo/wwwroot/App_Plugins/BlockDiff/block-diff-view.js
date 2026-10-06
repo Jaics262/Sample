@@ -7,6 +7,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #auth;
   #diff;
   #versions = [];
+  #linksOpen = false;
 
   constructor() {
     super();
@@ -32,7 +33,10 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         button.chip:hover, .preview-link:hover { text-decoration: underline; }
         .property, .block, .field, .nested { scroll-margin-top: 16px; }
         .pickers select { font: inherit; color: var(--uui-color-text, #1b264f); padding: 8px 10px; border: 1px solid var(--uui-color-border, #d8d7e9); border-radius: 3px; background: var(--uui-color-surface, #fff); }
+        .summary-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
         .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+        .summary[hidden] { display: none; }
+        button.toggle-links { font: inherit; font-size: 13px; font-weight: 700; border: 0; background: transparent; color: var(--uui-color-selected, #1b264f); cursor: pointer; padding: 4px 0; }
         .chip { border-radius: 99px; padding: 4px 10px; font-size: 13px; background: var(--uui-color-surface-alt, #f3f3f5); color: var(--uui-color-text, #1b264f); }
         .chip.count { background: var(--uui-color-selected, #1b264f); color: var(--uui-color-selected-contrast, #fff); }
         .property, .block { border: 1px solid var(--uui-color-border, #e3e3e8); border-radius: 6px; background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); margin-bottom: 14px; overflow: hidden; }
@@ -164,14 +168,32 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #render(diff) {
     const result = this.querySelector("#result");
     result.innerHTML = "";
-    const summary = document.createElement("div");
-    summary.className = "summary";
     const count = diff.changeCount ?? diff.ChangeCount ?? 0;
     const lines = diff.summary ?? diff.Summary ?? [];
+    const bar = document.createElement("div");
+    bar.className = "summary-bar";
     const countChip = document.createElement("span");
     countChip.className = "chip count";
     countChip.textContent = count === 0 ? "No changes" : `${count} change${count === 1 ? "" : "s"}`;
-    summary.append(countChip);
+    bar.append(countChip);
+    const summary = document.createElement("div");
+    summary.className = "summary";
+    summary.hidden = !this.#linksOpen;
+    if (lines.length > 0) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "toggle-links";
+      toggle.textContent = this.#linksOpen ? "Hide links" : "Show links";
+      toggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.#linksOpen = !this.#linksOpen;
+        summary.hidden = !this.#linksOpen;
+        toggle.textContent = this.#linksOpen ? "Hide links" : "Show links";
+      });
+      bar.append(toggle);
+    }
+    result.append(bar);
     for (const line of lines) {
       const text = typeof line === "string" ? line : line.text ?? line.Text ?? "";
       const target = typeof line === "string" ? "" : line.target ?? line.Target ?? "";
