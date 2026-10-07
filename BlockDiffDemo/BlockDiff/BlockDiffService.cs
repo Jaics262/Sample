@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
@@ -10,18 +11,22 @@ namespace BlockDiffDemo.BlockDiff;
 
 public class BlockDiffService
 {
+    private static readonly JsonSerializerOptions RemarkJson = new() { WriteIndented = true };
     private readonly IContentService _contentService;
     private readonly IContentTypeService _contentTypeService;
     private readonly IContentVersionService _contentVersionService;
+    private readonly IWebHostEnvironment _environment;
 
     public BlockDiffService(
         IContentService contentService,
         IContentTypeService contentTypeService,
-        IContentVersionService contentVersionService)
+        IContentVersionService contentVersionService,
+        IWebHostEnvironment environment)
     {
         _contentService = contentService;
         _contentTypeService = contentTypeService;
         _contentVersionService = contentVersionService;
+        _environment = environment;
     }
 
     public VersionListResponse? GetVersions(Guid contentKey)
@@ -32,16 +37,22 @@ public class BlockDiffService
             return null;
         }
 
+        var remarks = LoadRemarks(contentKey);
         var versions = _contentService.GetVersions(content.Id).ToList();
         var publishedVersionId = PublishedVersionId(content, versions);
-        var items = versions.Select((version, index) => new VersionListItem
+        var items = versions.Select((version, index) =>
         {
-            Id = version.VersionId,
-            Date = version.UpdateDate,
-            IsPublished = version.VersionId == publishedVersionId,
-            IsCurrent = index == 0,
-            Label = Label(version, index == 0, version.VersionId == publishedVersionId),
-            PreviewUrl = PreviewUrl(content.Key, version.VersionId),
+            remarks.TryGetValue(version.VersionId, out var remark);
+            return new VersionListItem
+            {
+                Id = version.VersionId,
+                Date = version.UpdateDate,
+                IsPublished = version.VersionId == publishedVersionId,
+                IsCurrent = index == 0,
+                Label = Label(version, index == 0, version.VersionId == publishedVersionId, remark),
+                PreviewUrl = PreviewUrl(content.Key, version.VersionId),
+                Remark = remark,
+            };
         }).ToList();
 
         return new VersionListResponse
@@ -49,6 +60,24 @@ public class BlockDiffService
             ContentName = content.Name ?? "Content",
             Versions = items,
         };
+    }
+
+    public bool RecordRollbackRemark(Guid contentKey, string? remark)
+    {
+        var content = _contentService.GetById(contentKey);
+        if (content is null)
+        {
+            return false;
+        }
+
+        var trimmed = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        if (trimmed is null)
+        {
+            return true;
+        }
+
+        SaveRemark(contentKey, content.VersionId, trimmed);
+        return true;
     }
 
     public DiffResponse? Compare(Guid contentKey, int fromVersionId, int toVersionId)
@@ -118,11 +147,14 @@ public class BlockDiffService
 
         var versions = _contentService.GetVersions(current.Id).ToList();
         var publishedVersionId = PublishedVersionId(current, versions);
+        var remarks = LoadRemarks(contentKey);
+        remarks.TryGetValue(from.VersionId, out var fromRemark);
+        remarks.TryGetValue(to.VersionId, out var toRemark);
         return new DiffResponse
         {
             ContentName = current.Name ?? "Content",
-            FromLabel = Label(from, versions.Count > 0 && versions[0].VersionId == from.VersionId, from.VersionId == publishedVersionId),
-            ToLabel = Label(to, versions.Count > 0 && versions[0].VersionId == to.VersionId, to.VersionId == publishedVersionId),
+            FromLabel = Label(from, versions.Count > 0 && versions[0].VersionId == from.VersionId, from.VersionId == publishedVersionId, fromRemark),
+            ToLabel = Label(to, versions.Count > 0 && versions[0].VersionId == to.VersionId, to.VersionId == publishedVersionId, toRemark),
             Summary = summary,
             ChangeCount = summary.Count,
             Properties = properties,
@@ -508,12 +540,13 @@ public class BlockDiffService
     private static void AddSummary(List<DiffSummaryItem> summary, string text, string target)
         => summary.Add(new DiffSummaryItem { Text = text, Target = target });
 
-    private string Label(IContent version, bool isCurrent, bool isPublishedVersion)
+    private string Label(IContent version, bool isCurrent, bool isPublishedVersion, string? remark)
     {
         var name = _contentVersionService.Get(version.VersionId)?.Username;
         var user = string.IsNullOrWhiteSpace(name) ? "Unknown user" : name.Trim();
         var state = isPublishedVersion ? "Published" : isCurrent ? "Current draft" : "Saved";
-        return $"{version.UpdateDate.ToLocalTime():dd MMM yyyy, HH:mm:ss} · {user} · {state}";
+        var label = $"{version.UpdateDate.ToLocalTime():dd MMM yyyy, HH:mm:ss} · {user} · {state}";
+        return string.IsNullOrWhiteSpace(remark) ? label : $"{label} · {remark.Trim()}";
     }
 
     private static int? PublishedVersionId(IContent content, IReadOnlyList<IContent> versions)
@@ -533,6 +566,70 @@ public class BlockDiffService
         return versions.Skip(1).FirstOrDefault(version => version.Published)?.VersionId
             ?? versions.Skip(1).Select(version => (int?)version.VersionId).FirstOrDefault();
     }
+
+    private Dictionary<int, string> LoadRemarks(Guid contentKey)
+    {
+        var path = RemarksPath();
+        if (!System.IO.File.Exists(path))
+        {
+            return new Dictionary<int, string>();
+        }
+
+        try
+        {
+            var json = System.IO.File.ReadAllText(path);
+            var store = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(json)
+                ?? new Dictionary<string, Dictionary<string, string>>();
+            if (!store.TryGetValue(contentKey.ToString("D"), out var remarks))
+            {
+                return new Dictionary<int, string>();
+            }
+
+            return remarks
+                .Where(pair => int.TryParse(pair.Key, out _) && !string.IsNullOrWhiteSpace(pair.Value))
+                .ToDictionary(pair => int.Parse(pair.Key), pair => pair.Value.Trim());
+        }
+        catch
+        {
+            return new Dictionary<int, string>();
+        }
+    }
+
+    private void SaveRemark(Guid contentKey, int versionId, string remark)
+    {
+        var path = RemarksPath();
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        Dictionary<string, Dictionary<string, string>> store;
+        if (System.IO.File.Exists(path))
+        {
+            try
+            {
+                store = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(System.IO.File.ReadAllText(path))
+                    ?? new Dictionary<string, Dictionary<string, string>>();
+            }
+            catch
+            {
+                store = new Dictionary<string, Dictionary<string, string>>();
+            }
+        }
+        else
+        {
+            store = new Dictionary<string, Dictionary<string, string>>();
+        }
+
+        var key = contentKey.ToString("D");
+        if (!store.TryGetValue(key, out var remarks))
+        {
+            remarks = new Dictionary<string, string>();
+            store[key] = remarks;
+        }
+
+        remarks[versionId.ToString()] = remark;
+        System.IO.File.WriteAllText(path, JsonSerializer.Serialize(store, RemarkJson));
+    }
+
+    private string RemarksPath()
+        => Path.Combine(_environment.ContentRootPath, "umbraco", "Data", "block-diff-remarks.json");
 
     private static string Describe(string? parent, string label, string status)
         => string.IsNullOrWhiteSpace(parent) ? $"{label} {status}" : $"{parent}: {label} {status}";

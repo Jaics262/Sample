@@ -20,6 +20,13 @@ public sealed class VersionListItem
     public string Label { get; set; } = "";
 
     public string PreviewUrl { get; set; } = "";
+
+    public string? Remark { get; set; }
+}
+
+public sealed class RollbackRemarkRequest
+{
+    public string? Remark { get; set; }
 }
 
 public sealed class DiffResponse

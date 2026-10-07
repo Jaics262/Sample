@@ -479,3 +479,5 @@ umbraco-package-schema.json
 
 # Media files
 /wwwroot/media/
+
+/umbraco/Data/block-diff-remarks.json

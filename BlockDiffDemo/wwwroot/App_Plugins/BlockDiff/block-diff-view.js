@@ -1,7 +1,6 @@
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_AUTH_CONTEXT } from "@umbraco-cms/backoffice/auth";
 import { UMB_DOCUMENT_ENTITY_TYPE } from "@umbraco-cms/backoffice/document";
-import { umbConfirmModal } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import { UMB_ACTION_EVENT_CONTEXT } from "@umbraco-cms/backoffice/action";
 import { UmbRequestReloadStructureForEntityEvent, UmbEntityUpdatedEvent } from "@umbraco-cms/backoffice/entity-action";
@@ -15,6 +14,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #diff;
   #versions = [];
   #linksOpen = false;
+  #pendingRollback = null;
 
   constructor() {
     super();
@@ -77,6 +77,17 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         .nested { margin: 8px 0 8px 16px; }
         .empty, .error { padding: 16px; background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); border: 1px solid var(--uui-color-border, #e3e3e8); border-radius: 6px; }
         .error { border-color: var(--uui-color-danger, #f1c4c4); background: var(--uui-color-danger-emphasis, #fff6f6); color: var(--uui-color-danger-standalone, #a12626); }
+        .rollback-dialog { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; background: rgba(15, 18, 28, .45); padding: 24px; }
+        .rollback-dialog[hidden] { display: none; }
+        .rollback-panel { width: min(480px, 100%); background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); border: 1px solid var(--uui-color-border, #e3e3e8); border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 20px 22px; }
+        .rollback-panel h2 { margin: 0 0 8px; font-size: 18px; }
+        .rollback-panel p { margin: 0 0 14px; color: var(--uui-color-text-alt, #515160); font-size: 14px; line-height: 1.45; font-weight: 400; }
+        .rollback-panel label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+        .rollback-panel textarea { font: inherit; font-weight: 400; min-height: 88px; resize: vertical; padding: 8px 10px; border: 1px solid var(--uui-color-border, #d8d7e9); border-radius: 3px; background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); }
+        .rollback-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .rollback-actions button { font: inherit; font-size: 13px; font-weight: 700; border-radius: 3px; padding: 8px 12px; cursor: pointer; border: 1px solid var(--uui-color-border, #d8d7e9); background: var(--uui-color-surface, #fff); color: var(--uui-color-text, #1b264f); }
+        .rollback-actions button.primary { background: var(--uui-color-selected, #1b264f); color: var(--uui-color-selected-contrast, #fff); border-color: var(--uui-color-selected, #1b264f); }
+        .rollback-actions button.danger { background: var(--uui-color-danger, #a12626); color: #fff; border-color: var(--uui-color-danger, #a12626); }
       </style>
       <div class="block-diff">
         <h1>Compare versions</h1>
@@ -105,6 +116,20 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
           </label>
         </div>
         <div id="result"><p class="empty">Loading versions…</p></div>
+      </div>
+      <div id="rollback-dialog" class="rollback-dialog" hidden>
+        <div class="rollback-panel" role="dialog" aria-modal="true" aria-labelledby="rollback-title">
+          <h2 id="rollback-title">Roll back to this version?</h2>
+          <p id="rollback-summary"></p>
+          <label>Remark <span style="font-weight:400">(optional)</span>
+            <textarea id="rollback-remark" placeholder="Why are you rolling back to this version?"></textarea>
+          </label>
+          <div class="rollback-actions">
+            <button type="button" id="rollback-cancel">Cancel</button>
+            <button type="button" id="rollback-save" class="primary">Save</button>
+            <button type="button" id="rollback-publish" class="danger">Save and publish</button>
+          </div>
+        </div>
       </div>`;
 
     this.querySelector("#from").addEventListener("change", () => {
@@ -122,6 +147,14 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     });
     this.querySelector("#rollback-from").addEventListener("click", (event) => this.#openRollback(event));
     this.querySelector("#rollback-to").addEventListener("click", (event) => this.#openRollback(event));
+    this.querySelector("#rollback-cancel").addEventListener("click", () => this.#closeRollbackDialog());
+    this.querySelector("#rollback-dialog").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) {
+        this.#closeRollbackDialog();
+      }
+    });
+    this.querySelector("#rollback-save").addEventListener("click", () => this.#confirmRollback(false));
+    this.querySelector("#rollback-publish").addEventListener("click", () => this.#confirmRollback(true));
     this.#syncContent();
     this.#timer = window.setInterval(() => this.#syncContent(), 600);
   }
@@ -465,10 +498,11 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     rollback.dataset.versionLabel = version?.label ?? version?.Label ?? "";
   }
 
-  async #openRollback(event) {
+  #openRollback(event) {
     event.preventDefault();
     const button = event.currentTarget;
     const versionKey = button.dataset.versionKey ?? "";
+    const versionId = Number(button.dataset.versionId || 0);
     const versionLabel = button.dataset.versionLabel || "the selected version";
     if (!versionKey) {
       this.#notifications?.peek("danger", {
@@ -477,24 +511,49 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
       return;
     }
 
-    try {
-      await umbConfirmModal(this, {
-        headline: "Roll back to this version?",
-        content: `This restores ${versionLabel} into the draft and publishes it to the live site.`,
-        color: "danger",
-        confirmLabel: "Roll back and publish",
-      });
-    } catch {
+    this.#pendingRollback = { versionKey, versionId, versionLabel };
+    this.querySelector("#rollback-summary").textContent =
+      `Restore ${versionLabel}. Save keeps it as draft; Save and publish updates the live site.`;
+    this.querySelector("#rollback-remark").value = "";
+    this.querySelector("#rollback-dialog").hidden = false;
+    this.querySelector("#rollback-remark").focus();
+  }
+
+  #closeRollbackDialog() {
+    this.#pendingRollback = null;
+    this.querySelector("#rollback-dialog").hidden = true;
+  }
+
+  async #confirmRollback(publish) {
+    const pending = this.#pendingRollback;
+    if (!pending) {
       return;
     }
 
+    const remark = this.querySelector("#rollback-remark").value.trim();
+    this.#closeRollbackDialog();
+
     try {
-      await this.#post(`/umbraco/management/api/v1/document-version/${versionKey}/rollback`);
-      await this.#put(`/umbraco/management/api/v1/document/${this.#contentId}/publish`, {
-        publishSchedules: [{ culture: null }],
-      });
+      await this.#post(`/umbraco/management/api/v1/document-version/${pending.versionKey}/rollback`);
+      if (publish) {
+        await this.#put(`/umbraco/management/api/v1/document/${this.#contentId}/publish`, {
+          publishSchedules: [{ culture: null }],
+        });
+      }
+
+      // Remarks go to Compare versions only — do not write a second History Rollback entry.
+      if (remark) {
+        await this.#post(`/umbraco/management/api/v1/block-diff/content/${this.#contentId}/rollback-remark`, {
+          remark,
+        });
+      }
+
       this.#notifications?.peek("positive", {
-        data: { message: "The document was rolled back and published." },
+        data: {
+          message: publish
+            ? "The document was rolled back and published."
+            : "The document was rolled back and saved as draft.",
+        },
       });
       this.#actions?.dispatchEvent(new UmbRequestReloadStructureForEntityEvent({
         unique: this.#contentId,
