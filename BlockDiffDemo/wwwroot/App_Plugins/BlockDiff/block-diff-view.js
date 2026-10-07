@@ -1,12 +1,17 @@
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_AUTH_CONTEXT } from "@umbraco-cms/backoffice/auth";
-import { UMB_ROLLBACK_MODAL } from "@umbraco-cms/backoffice/document";
-import { umbOpenModal } from "@umbraco-cms/backoffice/modal";
+import { UMB_DOCUMENT_ENTITY_TYPE } from "@umbraco-cms/backoffice/document";
+import { umbConfirmModal } from "@umbraco-cms/backoffice/modal";
+import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
+import { UMB_ACTION_EVENT_CONTEXT } from "@umbraco-cms/backoffice/action";
+import { UmbRequestReloadStructureForEntityEvent, UmbEntityUpdatedEvent } from "@umbraco-cms/backoffice/entity-action";
 
 class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #contentId = "";
   #timer = 0;
   #auth;
+  #notifications;
+  #actions;
   #diff;
   #versions = [];
   #linksOpen = false;
@@ -15,6 +20,12 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     super();
     this.consumeContext(UMB_AUTH_CONTEXT, (auth) => {
       this.#auth = auth;
+    });
+    this.consumeContext(UMB_NOTIFICATION_CONTEXT, (notifications) => {
+      this.#notifications = notifications;
+    });
+    this.consumeContext(UMB_ACTION_EVENT_CONTEXT, (actions) => {
+      this.#actions = actions;
     });
   }
 
@@ -449,47 +460,55 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     link.href = url || "#";
     link.hidden = url.length === 0;
     rollback.hidden = !version;
+    rollback.dataset.versionId = String(version?.id ?? version?.Id ?? "");
     rollback.dataset.versionKey = versionKeyFromPreview(url);
+    rollback.dataset.versionLabel = version?.label ?? version?.Label ?? "";
   }
 
   async #openRollback(event) {
     event.preventDefault();
-    const versionKey = event.currentTarget.dataset.versionKey ?? "";
-    const pending = umbOpenModal(this, UMB_ROLLBACK_MODAL, {}).catch(() => undefined);
-    if (versionKey) {
-      void this.#selectRollbackVersion(versionKey);
+    const button = event.currentTarget;
+    const versionKey = button.dataset.versionKey ?? "";
+    const versionLabel = button.dataset.versionLabel || "the selected version";
+    if (!versionKey) {
+      this.#notifications?.peek("danger", {
+        data: { message: "That version cannot be rolled back from here." },
+      });
+      return;
     }
 
-    await pending;
-  }
+    try {
+      await umbConfirmModal(this, {
+        headline: "Roll back to this version?",
+        content: `This restores ${versionLabel} into the draft and publishes it to the live site.`,
+        color: "danger",
+        confirmLabel: "Roll back and publish",
+      });
+    } catch {
+      return;
+    }
 
-  async #selectRollbackVersion(versionKey) {
-    const wanted = versionKey.toLowerCase();
-    const deadline = Date.now() + 8000;
-    let steady = 0;
-    while (Date.now() < deadline) {
-      const modal = findRollbackModal(document);
-      const versions = modal?._versions ?? [];
-      const root = modal?.shadowRoot ?? modal;
-      const items = root?.querySelectorAll(".rollback-item") ?? [];
-      if (modal && versions.length && modal._selectedVersion && items.length === versions.length) {
-        const index = versions.findIndex((item) => String(item.id).toLowerCase() === wanted);
-        if (index < 0) {
-          return;
-        }
-
-        if (String(modal._selectedVersion.id).toLowerCase() === wanted) {
-          steady += 1;
-          if (steady >= 3) {
-            return;
-          }
-        } else {
-          steady = 0;
-          items[index].click();
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    try {
+      await this.#post(`/umbraco/management/api/v1/document-version/${versionKey}/rollback`);
+      await this.#put(`/umbraco/management/api/v1/document/${this.#contentId}/publish`, {
+        publishSchedules: [{ culture: null }],
+      });
+      this.#notifications?.peek("positive", {
+        data: { message: "The document was rolled back and published." },
+      });
+      this.#actions?.dispatchEvent(new UmbRequestReloadStructureForEntityEvent({
+        unique: this.#contentId,
+        entityType: UMB_DOCUMENT_ENTITY_TYPE,
+      }));
+      this.#actions?.dispatchEvent(new UmbEntityUpdatedEvent({
+        unique: this.#contentId,
+        entityType: UMB_DOCUMENT_ENTITY_TYPE,
+      }));
+      await this.#loadVersions();
+    } catch (error) {
+      this.#notifications?.peek("danger", {
+        data: { message: this.#text(error.message) },
+      });
     }
   }
 
@@ -527,6 +546,33 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   }
 
   async #api(path) {
+    const response = await this.#request(path);
+    return response.json();
+  }
+
+  async #post(path, body) {
+    return this.#send(path, "POST", body);
+  }
+
+  async #put(path, body) {
+    return this.#send(path, "PUT", body);
+  }
+
+  async #send(path, method, body) {
+    const response = await this.#request(path, {
+      method,
+      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (response.status === 204) {
+      return;
+    }
+
+    const text = await response.text();
+    return text ? JSON.parse(text) : undefined;
+  }
+
+  async #request(path, options = {}) {
     const started = Date.now();
     while (!this.#auth && Date.now() - started < 5000) {
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -538,16 +584,18 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
 
     const token = await this.#auth.getLatestToken();
     const response = await fetch(path, {
+      ...options,
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${token}`,
+        ...(options.headers ?? {}),
       },
     });
     if (!response.ok) {
       throw new Error(`Request failed (${response.status}).`);
     }
 
-    return response.json();
+    return response;
   }
 
   #text(value) {
@@ -565,24 +613,6 @@ function versionKeyFromPreview(url) {
   } catch {
     return "";
   }
-}
-
-function findRollbackModal(root) {
-  const direct = root.querySelector?.("rp-rollback-modal");
-  if (direct) {
-    return direct;
-  }
-
-  for (const node of root.querySelectorAll?.("*") ?? []) {
-    if (node.shadowRoot) {
-      const found = findRollbackModal(node.shadowRoot);
-      if (found) {
-        return found;
-      }
-    }
-  }
-
-  return null;
 }
 
 function wordDiff(from, other) {

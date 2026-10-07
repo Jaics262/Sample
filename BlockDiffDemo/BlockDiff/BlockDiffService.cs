@@ -33,13 +33,14 @@ public class BlockDiffService
         }
 
         var versions = _contentService.GetVersions(content.Id).ToList();
+        var publishedVersionId = PublishedVersionId(content, versions);
         var items = versions.Select((version, index) => new VersionListItem
         {
             Id = version.VersionId,
             Date = version.UpdateDate,
-            IsPublished = version.Published,
+            IsPublished = version.VersionId == publishedVersionId,
             IsCurrent = index == 0,
-            Label = Label(version, index == 0),
+            Label = Label(version, index == 0, version.VersionId == publishedVersionId),
             PreviewUrl = PreviewUrl(content.Key, version.VersionId),
         }).ToList();
 
@@ -116,11 +117,12 @@ public class BlockDiffService
         }
 
         var versions = _contentService.GetVersions(current.Id).ToList();
+        var publishedVersionId = PublishedVersionId(current, versions);
         return new DiffResponse
         {
             ContentName = current.Name ?? "Content",
-            FromLabel = Label(from, versions.Count > 0 && versions[0].VersionId == from.VersionId),
-            ToLabel = Label(to, versions.Count > 0 && versions[0].VersionId == to.VersionId),
+            FromLabel = Label(from, versions.Count > 0 && versions[0].VersionId == from.VersionId, from.VersionId == publishedVersionId),
+            ToLabel = Label(to, versions.Count > 0 && versions[0].VersionId == to.VersionId, to.VersionId == publishedVersionId),
             Summary = summary,
             ChangeCount = summary.Count,
             Properties = properties,
@@ -506,12 +508,30 @@ public class BlockDiffService
     private static void AddSummary(List<DiffSummaryItem> summary, string text, string target)
         => summary.Add(new DiffSummaryItem { Text = text, Target = target });
 
-    private string Label(IContent version, bool isCurrent)
+    private string Label(IContent version, bool isCurrent, bool isPublishedVersion)
     {
         var name = _contentVersionService.Get(version.VersionId)?.Username;
         var user = string.IsNullOrWhiteSpace(name) ? "Unknown user" : name.Trim();
-        var state = version.Published ? "Published" : isCurrent ? "Current draft" : "Saved";
+        var state = isPublishedVersion ? "Published" : isCurrent ? "Current draft" : "Saved";
         return $"{version.UpdateDate.ToLocalTime():dd MMM yyyy, HH:mm:ss} · {user} · {state}";
+    }
+
+    private static int? PublishedVersionId(IContent content, IReadOnlyList<IContent> versions)
+    {
+        if (!content.Published || versions.Count == 0)
+        {
+            return null;
+        }
+
+        // GetVersions returns the current draft first. When the document is edited after publish,
+        // the live published snapshot is a later item; otherwise the current version is live.
+        if (!content.Edited)
+        {
+            return versions[0].VersionId;
+        }
+
+        return versions.Skip(1).FirstOrDefault(version => version.Published)?.VersionId
+            ?? versions.Skip(1).Select(version => (int?)version.VersionId).FirstOrDefault();
     }
 
     private static string Describe(string? parent, string label, string status)
