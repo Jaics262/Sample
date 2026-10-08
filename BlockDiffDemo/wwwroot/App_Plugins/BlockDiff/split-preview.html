@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Visual version preview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bar: #1b264f;
+      --border: #d8d7e9;
+      --surface: #fff;
+      --muted: #515160;
+      --bg: #f3f3f5;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Lato, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: #1b264f;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+    .toolbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 10px 16px;
+      background: var(--bar);
+      color: #fff;
+    }
+    #root {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .toolbar h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .toolbar p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      opacity: .85;
+      font-weight: 400;
+    }
+    .toolbar a {
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .panes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+    }
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .pane:last-child { border-right: 0; }
+    .pane-header {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #fafafa;
+    }
+    .pane-header .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .pane-header .label {
+      font-size: 13px;
+      font-weight: 700;
+      word-break: break-word;
+    }
+    .pane iframe {
+      flex: 1 1 auto;
+      width: 100%;
+      border: 0;
+      background: #fff;
+      min-height: 0;
+    }
+    .error {
+      margin: 24px;
+      padding: 16px;
+      border: 1px solid #f1c4c4;
+      background: #fff6f6;
+      color: #a12626;
+      border-radius: 6px;
+      max-width: 640px;
+    }
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .panes {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+      .pane {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+        height: calc(100dvh - 56px);
+        min-height: 60vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div>
+      <h1>Visual version preview</h1>
+      <p id="subtitle">Loading…</p>
+    </div>
+    <a id="open-live" href="/" target="_blank" rel="noopener">Open live site</a>
+  </div>
+  <div id="root"></div>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("fromUrl") || "";
+      const toUrl = params.get("toUrl") || "";
+      const fromLabel = params.get("fromLabel") || "From version";
+      const toLabel = params.get("toLabel") || "To version";
+      const root = document.getElementById("root");
+      const subtitle = document.getElementById("subtitle");
+
+      if (!fromUrl || !toUrl) {
+        subtitle.textContent = "Missing version preview URLs.";
+        root.innerHTML = "<p class=\"error\">Open this page from Compare versions after selecting From and To. Both preview URLs are required for the split view.</p>";
+        return;
+      }
+
+      document.title = "Visual preview · " + fromLabel + " · " + toLabel;
+      subtitle.textContent = "From and To side by side (Rollback Previewer frames).";
+
+      const panes = document.createElement("div");
+      panes.className = "panes";
+      panes.append(
+        buildPane("From", fromLabel, fromUrl),
+        buildPane("To", toLabel, toUrl)
+      );
+      root.append(panes);
+
+      function buildPane(eyebrow, label, src) {
+        const pane = document.createElement("section");
+        pane.className = "pane";
+        const header = document.createElement("div");
+        header.className = "pane-header";
+        header.innerHTML =
+          "<div class=\"eyebrow\"></div><div class=\"label\"></div>";
+        header.querySelector(".eyebrow").textContent = eyebrow;
+        header.querySelector(".label").textContent = label;
+        const frame = document.createElement("iframe");
+        frame.title = eyebrow + " version preview";
+        frame.src = src;
+        frame.loading = "eager";
+        pane.append(header, frame);
+        return pane;
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -44,6 +44,13 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
         .version-links { display: flex; gap: 16px; align-items: center; font-weight: 400; }
         .preview-link, .rollback-link { font-size: 13px; font-weight: 700; color: var(--uui-color-selected, #1b264f); }
         .rollback-link { border: 0; background: transparent; padding: 0; cursor: pointer; font-family: inherit; }
+        .preview-actions { display: flex; align-items: end; padding-bottom: 2px; }
+        .preview-both {
+          font: inherit; font-size: 13px; font-weight: 700; border-radius: 3px; padding: 8px 12px; cursor: pointer;
+          border: 1px solid var(--uui-color-selected, #1b264f); background: var(--uui-color-selected, #1b264f);
+          color: var(--uui-color-selected-contrast, #fff);
+        }
+        .preview-both:disabled { opacity: .45; cursor: not-allowed; }
         button.chip { font: inherit; border: 0; cursor: pointer; color: var(--uui-color-text, #1b264f); }
         button.chip:hover, .preview-link:hover, .rollback-link:hover { text-decoration: underline; }
         .property, .block, .field, .nested { scroll-margin-top: 16px; }
@@ -114,6 +121,9 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
               <option value="unchanged">Show unchanged</option>
             </select>
           </label>
+          <div class="preview-actions">
+            <button type="button" id="preview-both" class="preview-both" disabled title="Open From and To in one tab as a split visual preview">Preview both versions</button>
+          </div>
         </div>
         <div id="result"><p class="empty">Loading versions…</p></div>
       </div>
@@ -147,6 +157,7 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     });
     this.querySelector("#rollback-from").addEventListener("click", (event) => this.#openRollback(event));
     this.querySelector("#rollback-to").addEventListener("click", (event) => this.#openRollback(event));
+    this.querySelector("#preview-both").addEventListener("click", () => this.#openSplitPreview());
     this.querySelector("#rollback-cancel").addEventListener("click", () => this.#closeRollbackDialog());
     this.querySelector("#rollback-dialog").addEventListener("click", (event) => {
       if (event.target === event.currentTarget) {
@@ -483,6 +494,10 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
   #updatePreviewLinks() {
     this.#setPreview("#preview-from", "#rollback-from", this.querySelector("#from").value);
     this.#setPreview("#preview-to", "#rollback-to", this.querySelector("#to").value);
+    const fromUrl = this.querySelector("#preview-from").getAttribute("href") || "";
+    const toUrl = this.querySelector("#preview-to").getAttribute("href") || "";
+    const both = this.querySelector("#preview-both");
+    both.disabled = !fromUrl || fromUrl === "#" || !toUrl || toUrl === "#";
   }
 
   #setPreview(previewSelector, rollbackSelector, versionId) {
@@ -496,6 +511,31 @@ class BlockDiffWorkspaceView extends UmbElementMixin(HTMLElement) {
     rollback.dataset.versionId = String(version?.id ?? version?.Id ?? "");
     rollback.dataset.versionKey = versionKeyFromPreview(url);
     rollback.dataset.versionLabel = version?.label ?? version?.Label ?? "";
+  }
+
+  #openSplitPreview() {
+    const fromLink = this.querySelector("#preview-from");
+    const toLink = this.querySelector("#preview-to");
+    const fromUrl = fromLink.getAttribute("href") || "";
+    const toUrl = toLink.getAttribute("href") || "";
+    if (!fromUrl || fromUrl === "#" || !toUrl || toUrl === "#") {
+      this.#notifications?.peek("danger", {
+        data: { message: "Select From and To versions that both have a preview URL." },
+      });
+      return;
+    }
+
+    const fromId = this.querySelector("#from").value;
+    const toId = this.querySelector("#to").value;
+    const fromVersion = this.#versions.find((item) => String(item.id ?? item.Id) === String(fromId));
+    const toVersion = this.#versions.find((item) => String(item.id ?? item.Id) === String(toId));
+    const params = new URLSearchParams({
+      fromUrl,
+      toUrl,
+      fromLabel: fromVersion?.label ?? fromVersion?.Label ?? "From",
+      toLabel: toVersion?.label ?? toVersion?.Label ?? "To",
+    });
+    window.open(`/App_Plugins/BlockDiff/split-preview.html?${params.toString()}`, "_blank", "noopener,noreferrer");
   }
 
   #openRollback(event) {
