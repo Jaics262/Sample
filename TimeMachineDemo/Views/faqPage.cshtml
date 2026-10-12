@@ -1,0 +1,50 @@
+@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = null;
+    var accordions = Model.Value<BlockListModel>("accordions");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@Model.Value("title")</title>
+    <style>
+        body { font-family: Georgia, serif; margin: 0; color: #1b264f; background: #f7f4ef; }
+        main { max-width: 720px; margin: 0 auto; padding: 32px 24px 64px; }
+        h1 { font-size: 40px; margin: 0 0 12px; }
+        .intro { font-size: 18px; line-height: 1.5; }
+        details { background: #fff; border: 1px solid #d9d3c7; border-radius: 8px; margin: 16px 0; padding: 12px 16px; }
+        summary { cursor: pointer; font-size: 22px; }
+        details article { border-top: 1px solid #eee; padding: 12px 0; }
+        details h2 { font-size: 18px; margin: 0 0 6px; }
+        details p { margin: 0; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>@Model.Value("title")</h1>
+        <p class="intro">@Model.Value("intro")</p>
+        @if (accordions is not null)
+        {
+            foreach (var accordion in accordions)
+            {
+                var items = accordion.Content.Value<BlockListModel>("items");
+                <details open>
+                    <summary>@accordion.Content.Value("title")</summary>
+                    @if (items is not null)
+                    {
+                        foreach (var item in items)
+                        {
+                            <article>
+                                <h2>@item.Content.Value("heading")</h2>
+                                <p>@item.Content.Value("text")</p>
+                            </article>
+                        }
+                    }
+                </details>
+            }
+        }
+    </main>
+</body>
+</html>
