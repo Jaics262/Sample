@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Umbraco.Cms" Version="17.4.2" />
+    <PackageVersion Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="17.4.2" />
+    <PackageVersion Include="Microsoft.ICU.ICU4C.Runtime" Version="72.1.0.3" />
+    <PackageVersion Include="uSync" Version="17.4.3" />
+    <PackageVersion Include="uSync.TimeMachine" Version="17.5.0" />
+    <PackageVersion Include="uSync.TimeMachine.Client" Version="17.5.0" />
+  </ItemGroup>
+</Project>

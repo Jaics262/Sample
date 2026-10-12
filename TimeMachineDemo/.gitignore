@@ -1,0 +1,12 @@
+## Umbraco runtime output. The seeder recreates the demo content on first run.
+
+appsettings-schema.json
+appsettings-schema.*.json
+umbraco-package-schema.json
+
+/umbraco/Data/TEMP/
+/umbraco/Logs/
+/wwwroot/media/
+
+# Written by uSync on startup.
+/uSync/

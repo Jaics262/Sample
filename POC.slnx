@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BlockDiffDemo/BlockDiffDemo.csproj" />
+  <Project Path="TimeMachineDemo/TimeMachineDemo.csproj" />
+</Solution>
