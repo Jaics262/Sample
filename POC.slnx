@@ -2,4 +2,5 @@
   <Project Path="BlockDiffDemo/BlockDiffDemo.csproj" />
   <Project Path="TimeMachineDemo/TimeMachineDemo.csproj" />
   <Project Path="URestoreDemo/URestoreDemo.csproj" />
+  <Project Path="DeployDemo/DeployDemo.csproj" />
 </Solution>

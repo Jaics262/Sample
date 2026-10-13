@@ -1,0 +1,26 @@
+{
+  "Name": "Accordion items",
+  "EditorAlias": "Umbraco.BlockList",
+  "EditorUiAlias": "Umb.PropertyEditorUi.BlockList",
+  "Configuration": {
+    "blocks": [
+      {
+        "contentElementTypeKey": "a980167a-0683-4978-9639-05dd0b858cab",
+        "settingsElementTypeKey": null
+      }
+    ],
+    "validationLimit": {
+      "min": null,
+      "max": null
+    },
+    "useSingleBlockMode": false
+  },
+  "Udi": "umb://data-type/e46344d8d3de47108c78c69d12a91297",
+  "Dependencies": [
+    {
+      "Udi": "umb://document-type/a980167a06834978963905dd0b858cab"
+    }
+  ],
+  "__type": "Umbraco.Deploy.Infrastructure,Umbraco.Deploy.Infrastructure.Artifacts.DataTypeArtifact",
+  "__version": "17.3.1"
+}

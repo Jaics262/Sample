@@ -5,89 +5,146 @@ using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 
-var docsRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docs", "urestore"));
-if (!Directory.Exists(docsRoot))
+var target = args.Length > 0 ? args[0] : "deploy";
+if (target.Equals("urestore", StringComparison.OrdinalIgnoreCase))
 {
-    docsRoot = @"C:\Projects\POC\docs\urestore";
+    WriteURestore();
+}
+else
+{
+    WriteDeploy();
 }
 
-var output = Path.Combine(docsRoot, "uRestore.docx");
-var images = new[]
+static void WriteDeploy()
 {
-    (Path: Path.Combine(docsRoot, "property-restore-versions.png"), Caption: "Property Restore tab. Version list with culture filter and draft, published, and saved states."),
-    (Path: Path.Combine(docsRoot, "property-restore-diff.png"), Caption: "Property diff. Changed properties are pre-selected. Media and rich text values still appear as JSON or markup."),
-    (Path: Path.Combine(docsRoot, "faq-page.png"), Caption: "The published FAQ page (Delivery questions) that those content versions produced."),
-};
-
-foreach (var image in images)
-{
-    if (!File.Exists(image.Path))
+    var docsRoot = ResolveDocs("umbraco-deploy");
+    var output = Path.Combine(docsRoot, "Umbraco-Deploy.docx");
+    var images = new[]
     {
-        throw new FileNotFoundException("Screenshot missing.", image.Path);
+        (Path: Path.Combine(docsRoot, "settings-deploy.png"), Caption: "Settings → Deploy dashboard. Version 17.3.1 reports Ready, with schema update operations from .uda files."),
+        (Path: Path.Combine(docsRoot, "workspaces-config.png"), Caption: "Same dashboard with the Development workspace badge in the header (CurrentWorkspaceName from appsettings)."),
+        (Path: Path.Combine(docsRoot, "faq-page.png"), Caption: "The seeded FAQ page used as sample content for transfer proofs once a second environment exists."),
+    };
+
+    WriteDocument(
+        output,
+        images,
+        title: "Umbraco Deploy On-premises on Umbraco 17",
+        intro: "Proof notes from the DeployDemo site. Checked on 13 October 2026.",
+        buildBody: body =>
+        {
+            body.Append(Heading("Overview"));
+            body.Append(Para("Umbraco Deploy On-premises is the same deployment engine used on Umbraco Cloud, packaged for self-hosted sites. It transfers schema, content, and media between named workspaces (for example Development, Staging, Live). It is not a version-history viewer for a single content item."));
+            body.Append(Para("NuGet packages on this proof: Umbraco.Deploy.OnPrem 17.3.1 and Umbraco.Deploy.Contrib 17.0.0 (Block List / Block Grid transfer helpers). Both target .NET 10 with Umbraco CMS 17."));
+            body.Append(Para("Deploy is commercial. Public pricing checked earlier pointed to about €2,800 as a subscription figure from 1 January 2026. Confirm the current price and billing interval with Umbraco before budgeting. A valid licence key is required for full workspace transfer."));
+
+            body.Append(Heading("Detail"));
+            body.Append(Heading2("What this proof installed"));
+            body.Append(Para("Project: DeployDemo, in POC beside TimeMachineDemo, URestoreDemo, and BlockDiffDemo. .NET 10."));
+            body.Append(Para("Umbraco.Cms 17.4.2."));
+            body.Append(Para("Umbraco.Deploy.OnPrem 17.3.1 and Umbraco.Deploy.Contrib 17.0.0."));
+            body.Append(Para("SQLite, unattended install. The site runs at https://localhost:5143/umbraco. Admin credentials are in appsettings.Development.json (admin@example.com / Deploy-demo-1)."));
+
+            body.Append(Heading2("What it moves"));
+            body.Append(Para("Deploy serialises schema and content into .uda files under umbraco/Deploy and pushes or pulls between workspaces over HTTPS using a shared ApiSecret. Editors use the Workspaces dashboard in Settings, not Info → Rollback on a single page."));
+            body.Append(Para("Unlike uSync TimeMachine, there is no site-wide timeline of backoffice edits with property diffs. Unlike uRestore, there is no selective property restore from an older version of the same node. Deploy answers: take what is on this environment and put it on that environment."));
+
+            body.Append(Heading2("The sample content"));
+            body.Append(Para("Delivery questions is an FAQ page with nested Accordion Block Lists. Welcome and Office hours are simple note pages. The same seed exists on TimeMachineDemo and URestoreDemo so you can compare tools against identical content."));
+
+            body.Append(Heading2("Configuration"));
+            body.Append(Para("Umbraco:Licenses:Products:Umbraco.Deploy.OnPrem holds the licence key (placeholder REPLACE-WITH-YOUR-DEPLOY-LICENSE-KEY on this proof)."));
+            body.Append(Para("Umbraco:Deploy:Settings:ApiSecret is a 64-byte Base64 secret shared by every environment in the project."));
+            body.Append(Para("Umbraco:Deploy:Project:CurrentWorkspaceName is Development. Workspaces list Development at https://localhost:5143 and Live at https://localhost:5144 as a second environment placeholder."));
+
+            body.Append(Heading2("Licence note for this proof"));
+            body.Append(Para("This repository does not include a paid Deploy licence. The project is meant to show install, configuration, and the boundary of the product. Replace the placeholder key and stand up a second workspace URL before proving a real transfer."));
+
+            body.Append(Heading("Pros"));
+            body.Append(Bullet("Same engine as Umbraco Cloud for reliable schema and content transfer between self-hosted environments."));
+            body.Append(Bullet("Contrib package covers Block List / Block Grid content editors used on modern sites."));
+            body.Append(Bullet("Fits CI/CD workflows with .uda files in source control."));
+            body.Append(Bullet("Runs on Umbraco 17 / .NET 10."));
+
+            body.Append(Heading("Cons"));
+            body.Append(Bullet("Paid product. Not a free substitute for Rollback Previewer, uRestore, or TimeMachine."));
+            body.Append(Bullet("Needs a licence key and at least two reachable HTTPS environments to prove transfer."));
+            body.Append(Bullet("Does not show readable nested block field diffs for an older version of one page."));
+            body.Append(Bullet("Does not provide a visual old-page preview or share link."));
+            body.Append(Bullet("Not a content-version history tool. Info → Rollback remains separate."));
+
+            body.Append(Heading("Screenshots"));
+            body.Append(Para("Taken from DeployDemo on 13 October 2026 (or product documentation placeholders if the licence UI blocked a live capture)."));
+        },
+        closing: "Add a real Deploy licence key, bring up a second environment on the Live URL, then transfer Delivery questions. Compare that outcome with TimeMachineDemo (timeline) and URestoreDemo (property restore) to confirm Deploy is the environment-transfer tool, not the history viewer.");
+}
+
+static void WriteURestore()
+{
+    var docsRoot = ResolveDocs("urestore");
+    var output = Path.Combine(docsRoot, "uRestore.docx");
+    var images = new[]
+    {
+        (Path: Path.Combine(docsRoot, "property-restore-versions.png"), Caption: "Property Restore tab. Version list with culture filter and draft, published, and saved states."),
+        (Path: Path.Combine(docsRoot, "property-restore-diff.png"), Caption: "Property diff. Changed properties are pre-selected. Media and rich text values still appear as JSON or markup."),
+        (Path: Path.Combine(docsRoot, "faq-page.png"), Caption: "The published FAQ page (Delivery questions) that those content versions produced."),
+    };
+
+    WriteDocument(
+        output,
+        images,
+        title: "uRestore on Umbraco 17",
+        intro: "Proof notes from the URestoreDemo site. Checked on 13 October 2026.",
+        buildBody: body =>
+        {
+            body.Append(Heading("Overview"));
+            body.Append(Para("uRestore is a backoffice Property Restore workspace view. On a content item it lists saved versions, diffs each property against the current draft, and lets an editor restore only the properties they select."));
+            body.Append(Para("NuGet package: Umbraco.Community.uRestore 1.0.7 (MIT)."));
+        },
+        closing: "Open Delivery questions, then Property Restore.");
+}
+
+static string ResolveDocs(string folder)
+{
+    var docsRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docs", folder));
+    if (!Directory.Exists(docsRoot))
+    {
+        docsRoot = Path.Combine(@"C:\Projects\POC\docs", folder);
     }
+
+    Directory.CreateDirectory(docsRoot);
+    return docsRoot;
 }
 
-if (File.Exists(output))
+static void WriteDocument(
+    string output,
+    (string Path, string Caption)[] images,
+    string title,
+    string intro,
+    Action<Body> buildBody,
+    string closing)
 {
-    File.Delete(output);
-}
+    foreach (var image in images)
+    {
+        if (!File.Exists(image.Path))
+        {
+            throw new FileNotFoundException("Screenshot missing.", image.Path);
+        }
+    }
 
-using (var document = WordprocessingDocument.Create(output, WordprocessingDocumentType.Document))
-{
+    if (File.Exists(output))
+    {
+        File.Delete(output);
+    }
+
+    using var document = WordprocessingDocument.Create(output, WordprocessingDocumentType.Document);
     var mainPart = document.AddMainDocumentPart();
     mainPart.Document = new Document(new Body());
     var body = mainPart.Document.Body!;
 
-    body.Append(Title("uRestore on Umbraco 17"));
-    body.Append(Para("Proof notes from the URestoreDemo site. Checked on 13 October 2026."));
-
-    body.Append(Heading("Overview"));
-    body.Append(Para("uRestore is a backoffice Property Restore workspace view. On a content item it lists saved versions, diffs each property against the current draft, and lets an editor restore only the properties they select. Restored values become a new draft, or save-and-publish from the confirmation dialog."));
-    body.Append(Para("NuGet package: Umbraco.Community.uRestore 1.0.7 (MIT). It targets .NET 10 and Umbraco 17+. It does not replace Info → Rollback. There is no site-wide timeline. Restore is always scoped to the open content node."));
-    body.Append(Para("No appsettings section is required. After install and restart, the Property Restore tab appears on content workspaces."));
-
-    body.Append(Heading("Detail"));
-    body.Append(Heading2("What this proof installed"));
-    body.Append(Para("Project: URestoreDemo, in POC beside TimeMachineDemo and BlockDiffDemo. .NET 10."));
-    body.Append(Para("Umbraco.Cms 17.4.2."));
-    body.Append(Para("Umbraco.Community.uRestore 1.0.7."));
-    body.Append(Para("SQLite, unattended install. The site runs at https://localhost:5133/umbraco. The admin user is in appsettings.Development.json (admin@example.com / URestore-demo-1)."));
-
-    body.Append(Heading2("What it restores"));
-    body.Append(Para("uRestore works from Umbraco content version history for the current item. Editors filter by culture on multilingual sites. Changed properties are pre-selected. Properties that match the current draft stay unchecked."));
-    body.Append(Para("Unlike uSync TimeMachine, there is no common timeline for many content items, document types, or data types. Welcome, Office hours, and Delivery questions each have their own Property Restore tab."));
-
-    body.Append(Heading2("The sample content"));
-    body.Append(Para("Delivery questions is an FAQ page. Accordions is a Block List of Accordion blocks. Each accordion has its own Block List of Accordion item blocks, with a heading and text. The page was saved several times so the version list has multiple entries: Shipping created, Returns added, item text edited, an item removed, titles renamed, and a final publish."));
-    body.Append(Para("Welcome and Office hours are simple note pages for proving a single text-field restore without touching other properties."));
-
-    body.Append(Heading2("How a block change is shown"));
-    body.Append(Para("Non-string values are serialised with JsonSerializer.Serialize. Block List, Block Grid, Rich Text, and media pickers therefore still show JSON or raw markup in the property diff."));
-    body.Append(Para("A Block List or Block Grid restores as the whole property, not as one nested block or field. Selecting Accordions puts the entire nested structure back. This matches the package documentation and is the same limit as the built-in Rollback screen for nested content."));
-
-    body.Append(Heading2("Restore"));
-    body.Append(Para("Compare opens the property diff. Restore selected asks for Save as draft or Save & Publish. Draft restore is non-destructive: it does not auto-publish. Info → Rollback remains available for whole-version rollback."));
-
-    body.Append(Heading2("Configuration"));
-    body.Append(Para("None. ContentVersionCleanupPolicy:EnableCleanup is false in the Development appsettings so the seeded versions are not pruned during the proof."));
-
-    body.Append(Heading("Pros"));
-    body.Append(Bullet("Selective property restore on one page without overwriting other fields."));
-    body.Append(Bullet("Free MIT package on Umbraco 17 / .NET 10."));
-    body.Append(Bullet("Leaves the built-in Rollback screen in place."));
-    body.Append(Bullet("Culture filter for variants."));
-    body.Append(Bullet("Changed properties are pre-selected, which speeds up simple text restores."));
-    body.Append(Bullet("Same seeded FAQ content as TimeMachineDemo, so the two proofs can be compared side by side."));
-
-    body.Append(Heading("Cons"));
-    body.Append(Bullet("No site-wide timeline. You cannot restore many content items from one screen the way TimeMachine does."));
-    body.Append(Bullet("Block List and nested accordion changes are not readable as labelled fields. The property restores as one JSON value."));
-    body.Append(Bullet("No visual page preview and no share link (use Rollback Previewer for that)."));
-    body.Append(Bullet("Early package: low download count when checked. Treat as a trial before relying on it in production."));
-    body.Append(Bullet("Does not restore media or member properties."));
-
-    body.Append(Heading("Screenshots"));
-    body.Append(Para("Taken on the URestoreDemo backoffice and public site on 13 October 2026."));
+    body.Append(Title(title));
+    body.Append(Para(intro));
+    buildBody(body);
 
     var imageId = 1U;
     foreach (var image in images)
@@ -96,12 +153,10 @@ using (var document = WordprocessingDocument.Create(output, WordprocessingDocume
     }
 
     body.Append(Heading("Where to look next"));
-    body.Append(Para("Open Delivery questions, then Property Restore. Compare an older version and restore only Title or Introduction to prove selective restore. Try restoring Accordions alone and confirm the nested blocks come back as one property. Compare that behaviour with Settings → uSync → TimeMachine on TimeMachineDemo if you need a common timeline for more content."));
-
+    body.Append(Para(closing));
     mainPart.Document.Save();
+    Console.WriteLine($"Wrote {output}");
 }
-
-Console.WriteLine($"Wrote {output}");
 
 static Paragraph Title(string text) => new(
     new ParagraphProperties(new SpacingBetweenLines { After = "200" }),

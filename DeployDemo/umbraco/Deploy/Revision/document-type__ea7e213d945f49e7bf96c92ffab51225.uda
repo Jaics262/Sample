@@ -1,0 +1,71 @@
+{
+  "Name": "FAQ page",
+  "Alias": "faqPage",
+  "DefaultTemplate": "umb://template/01a13512180d7aa3b9495d465ddaa1f7",
+  "AllowedTemplates": [
+    "umb://template/01a13512180d7aa3b9495d465ddaa1f7"
+  ],
+  "HistoryCleanup": {},
+  "Icon": "icon-help-alt",
+  "Thumbnail": "folder.png",
+  "Permissions": {
+    "AllowedAtRoot": true,
+    "AllowedChildContentTypes": []
+  },
+  "CompositionContentTypes": [],
+  "PropertyGroups": [
+    {
+      "Key": "2f303698-34f7-4a50-873d-7024c581547a",
+      "Name": "content",
+      "Alias": "Content",
+      "PropertyTypes": [
+        {
+          "Key": "6831fa92-2e13-4eca-a7f9-cd3cb2382330",
+          "Alias": "accordions",
+          "DataType": "umb://data-type/b1ba82e1fbfd401cb65ea98e80fe8bd2",
+          "ValueType": "Umbraco.Cms.Core.Models.Blocks.BlockListModel",
+          "Name": "Accordions",
+          "SortOrder": 2
+        },
+        {
+          "Key": "b172d962-04ec-42a1-a685-55ff94a751c8",
+          "Alias": "intro",
+          "DataType": "umb://data-type/c6bac0dd4ab945b18e30e4b619ee5da3",
+          "ValueType": "System.String",
+          "Name": "Introduction",
+          "SortOrder": 1
+        },
+        {
+          "Key": "d33bd649-6744-4880-abdc-72ed50a90348",
+          "Alias": "title",
+          "DataType": "umb://data-type/0cc0eba1996042c9bf9b60e150b429ae",
+          "ValueType": "System.String",
+          "Name": "Title"
+        }
+      ]
+    }
+  ],
+  "PropertyTypes": [],
+  "Udi": "umb://document-type/ea7e213d945f49e7bf96c92ffab51225",
+  "Dependencies": [
+    {
+      "Udi": "umb://data-type/0cc0eba1996042c9bf9b60e150b429ae",
+      "Ordering": true
+    },
+    {
+      "Udi": "umb://data-type/b1ba82e1fbfd401cb65ea98e80fe8bd2",
+      "Ordering": true
+    },
+    {
+      "Udi": "umb://data-type/c6bac0dd4ab945b18e30e4b619ee5da3",
+      "Ordering": true
+    },
+    {
+      "Udi": "umb://template/01a13512180d7aa3b9495d465ddaa1f7",
+      "Ordering": true,
+      "Mode": "Exist"
+    }
+  ],
+  "__type": "Umbraco.Deploy.Infrastructure,Umbraco.Deploy.Infrastructure.Artifacts.ContentType.DocumentTypeArtifact",
+  "__version": "17.3.1"
+}

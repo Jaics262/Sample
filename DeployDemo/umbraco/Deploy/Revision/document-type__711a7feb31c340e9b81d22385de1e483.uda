@@ -1,0 +1,51 @@
+{
+  "Name": "Accordion",
+  "Alias": "accordionBlock",
+  "AllowedTemplates": [],
+  "HistoryCleanup": {},
+  "Icon": "icon-indent",
+  "Thumbnail": "folder.png",
+  "Permissions": {
+    "IsElementType": true,
+    "AllowedChildContentTypes": []
+  },
+  "CompositionContentTypes": [],
+  "PropertyGroups": [
+    {
+      "Key": "924c2068-03f3-4212-aa2e-9b4c5358d8d2",
+      "Name": "content",
+      "Alias": "Content",
+      "PropertyTypes": [
+        {
+          "Key": "b6251f68-d9d5-48a2-a5c9-291ddf911235",
+          "Alias": "title",
+          "DataType": "umb://data-type/0cc0eba1996042c9bf9b60e150b429ae",
+          "ValueType": "System.String",
+          "Name": "Title"
+        },
+        {
+          "Key": "cead338c-3b7f-4096-9016-ac82e7140ffd",
+          "Alias": "items",
+          "DataType": "umb://data-type/e46344d8d3de47108c78c69d12a91297",
+          "ValueType": "Umbraco.Cms.Core.Models.Blocks.BlockListModel",
+          "Name": "Items",
+          "SortOrder": 1
+        }
+      ]
+    }
+  ],
+  "PropertyTypes": [],
+  "Udi": "umb://document-type/711a7feb31c340e9b81d22385de1e483",
+  "Dependencies": [
+    {
+      "Udi": "umb://data-type/0cc0eba1996042c9bf9b60e150b429ae",
+      "Ordering": true
+    },
+    {
+      "Udi": "umb://data-type/e46344d8d3de47108c78c69d12a91297",
+      "Ordering": true
+    }
+  ],
+  "__type": "Umbraco.Deploy.Infrastructure,Umbraco.Deploy.Infrastructure.Artifacts.ContentType.DocumentTypeArtifact",
+  "__version": "17.3.1"
+}
